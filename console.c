@@ -1,5 +1,6 @@
 #include "console.h"
 #include <raylib.h>
+#include <raymath.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,7 +80,6 @@ struct history {
 struct console {
   struct buf text[N_LINES];
   Rectangle window;
-  bool enabled;
   struct decisions decisions;
   int key;
 
@@ -97,7 +97,16 @@ struct console {
 
   struct history hist;
 
-  float anim_down;
+  struct enable_animation {
+    float percent;
+    float timer;
+    enum console_enable_animation {
+      CONSOLE_CLOSED,
+      CONSOLE_OPENED,
+      CONSOLE_OPENING,
+      CONSOLE_CLOSING,
+    } state;
+  } anim;
 
 } g_console;
 
@@ -106,7 +115,6 @@ void console_init() {
     g_console.text[i].used = 0;
   }
 
-  g_console.enabled = false;
   g_console.window = (Rectangle){
       .width = (float)GetScreenWidth(),
       .x = 0.f,
@@ -128,7 +136,10 @@ void console_init() {
   g_console.hist.index = g_console.hist.used = 0;
   g_console.background_color = (Color){.r = 0, .b = 0, .g = 0, .a = 210};
   g_console.font_color = (Color){.r = 0, .b = 0, .g = 255, .a = 255};
-  g_console.anim_down = 0.f;
+
+  g_console.anim.timer = 0.f;
+  g_console.anim.percent = 0.f;
+  g_console.anim.state = CONSOLE_CLOSED;
 
   console_register("exit", console_builtin_exit);
   console_register("clear", console_builtin_clear);
@@ -255,17 +266,48 @@ void console_scan() {
   console_writeln("Error: No such command");
 }
 
-void console_update() {
+static inline void console_update_animation() {
   if (IsKeyPressed(g_console.key)) {
-    g_console.enabled = !g_console.enabled;
+    if (g_console.anim.state == CONSOLE_CLOSED) {
+      g_console.anim.state = CONSOLE_OPENING;
+    } else if (g_console.anim.state == CONSOLE_OPENED) {
+      g_console.anim.state = CONSOLE_CLOSING;
+    }
   }
 
-  if (!g_console.enabled) {
-    g_console.window.height = 0;
+  if (g_console.anim.state == CONSOLE_OPENING) {
+    g_console.anim.timer += GetFrameTime();
+    if (g_console.anim.timer > 0.001f) {
+      g_console.anim.percent = Clamp(g_console.anim.percent + 0.01f, 0.f, 1.f);
+      g_console.anim.timer = 0.f;
+    }
+    g_console.window.height = Lerp(0.f, GetScreenHeight() / 3.f, g_console.anim.percent);
+
+    if (g_console.anim.percent >= 1.f) {
+      g_console.anim.state = CONSOLE_OPENED;
+      g_console.anim.timer = 0.f;
+    }
+  } else if (g_console.anim.state == CONSOLE_CLOSING) {
+    g_console.anim.timer += GetFrameTime();
+    if (g_console.anim.timer > 0.001f) {
+      g_console.anim.percent = Clamp(g_console.anim.percent - 0.01f, 0.f, 1.f);
+      g_console.anim.timer = 0.f;
+    }
+    g_console.window.height = Lerp(0.f, GetScreenHeight() / 3.f, g_console.anim.percent);
+
+    if (g_console.anim.percent <= 0.f) {
+      g_console.anim.state = CONSOLE_CLOSED;
+      g_console.anim.timer = 0.f;
+    }
+  }
+}
+
+void console_update() {
+  console_update_animation();
+
+  if (g_console.anim.state != CONSOLE_OPENED) {
     return;
   }
-
-  g_console.window.height = GetScreenHeight() / 3.f;
 
   if (IsKeyPressed(KEY_UP)) {
     g_console.hist.index = g_console.hist.index < g_console.hist.used
@@ -326,9 +368,6 @@ void console_update() {
 }
 
 void console_render() {
-  if (!g_console.enabled) {
-    return;
-  }
   DrawRectangleRec(g_console.window, g_console.background_color);
 
   for (int i = 0; i < N_LINES; ++i) {
@@ -354,7 +393,7 @@ void console_set_font(Font f, float size) {
   g_console.font_size = size;
 }
 
-bool console_is_active() { return g_console.enabled; }
+bool console_is_active() { return g_console.anim.state == CONSOLE_OPENED; }
 
 void console_set_background_color(Color c) { g_console.background_color = c; }
 
