@@ -275,29 +275,22 @@ static inline void console_update_animation() {
     }
   }
 
-  if (g_console.anim.state == CONSOLE_OPENING) {
+  if (g_console.anim.state == CONSOLE_CLOSING || g_console.anim.state == CONSOLE_OPENING) {
     g_console.anim.timer += GetFrameTime();
-    if (g_console.anim.timer > 0.001f) {
-      g_console.anim.percent = Clamp(g_console.anim.percent + 0.01f, 0.f, 1.f);
-      g_console.anim.timer = 0.f;
-    }
     g_console.window.height = Lerp(0.f, GetScreenHeight() / 3.f, g_console.anim.percent);
+  }
 
+  if (g_console.anim.state == CONSOLE_OPENING && g_console.anim.timer > 0.001f) {
+    g_console.anim.percent = Clamp(g_console.anim.percent + 0.01f, 0.f, 1.f);
+    g_console.anim.timer = 0.f;
     if (g_console.anim.percent >= 1.f) {
       g_console.anim.state = CONSOLE_OPENED;
-      g_console.anim.timer = 0.f;
     }
-  } else if (g_console.anim.state == CONSOLE_CLOSING) {
-    g_console.anim.timer += GetFrameTime();
-    if (g_console.anim.timer > 0.001f) {
-      g_console.anim.percent = Clamp(g_console.anim.percent - 0.01f, 0.f, 1.f);
-      g_console.anim.timer = 0.f;
-    }
-    g_console.window.height = Lerp(0.f, GetScreenHeight() / 3.f, g_console.anim.percent);
-
+  } else if (g_console.anim.state == CONSOLE_CLOSING && g_console.anim.timer > 0.001f) {
+    g_console.anim.percent = Clamp(g_console.anim.percent - 0.01f, 0.f, 1.f);
+    g_console.anim.timer = 0.f;
     if (g_console.anim.percent <= 0.f) {
       g_console.anim.state = CONSOLE_CLOSED;
-      g_console.anim.timer = 0.f;
     }
   }
 }
