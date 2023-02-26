@@ -20,6 +20,6 @@ endif()
 
 add_executable(console_test "")
 
-target_sources(console_test PRIVATE "main.c" "console.c")
+target_sources(console_test PRIVATE "main.c" "console.c" "console_args.c")
 
 target_link_libraries(console_test PRIVATE raylib)

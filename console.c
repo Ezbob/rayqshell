@@ -145,30 +145,6 @@ void console_init() {
   console_register("clear", console_builtin_clear);
 }
 
-/*
- * Count the number of whitespace delimited arguments in a UTF-8 string.
- * characters the UTF-8 string in question.
- * count length of the UTF-8 string measured in max-length codepoints (e.g.: 32 bit integers)
- */
-int console_count_args(int const *characters, int count) {
-  int arg_count = 0;
-
-  for (int i = 0, quote_level = 0; i < count; ++i) {
-    int c = characters[i];
-    if (is_white_space(c) && quote_level == 0) {
-      arg_count++;
-    } else if (is_quote(c)) {
-      quote_level = (quote_level > 0) ? (quote_level - 1) : (quote_level + 1);
-    }
-
-    if (i == (count - 1) && quote_level == 0) {
-      arg_count++;
-    }
-  }
-
-  return arg_count;
-}
-
 void console_writeln(char const *blah) {
   struct buf *b = g_console.text;
   b->used = (int)strlen(blah);
@@ -275,18 +251,22 @@ static inline void console_update_animation() {
     }
   }
 
-  if (g_console.anim.state == CONSOLE_CLOSING || g_console.anim.state == CONSOLE_OPENING) {
+  if (g_console.anim.state == CONSOLE_CLOSING ||
+      g_console.anim.state == CONSOLE_OPENING) {
     g_console.anim.timer += GetFrameTime();
-    g_console.window.height = Lerp(0.f, GetScreenHeight() / 3.f, g_console.anim.percent);
+    g_console.window.height =
+        Lerp(0.f, GetScreenHeight() / 3.f, g_console.anim.percent);
   }
 
-  if (g_console.anim.state == CONSOLE_OPENING && g_console.anim.timer > 0.001f) {
+  if (g_console.anim.state == CONSOLE_OPENING &&
+      g_console.anim.timer > 0.001f) {
     g_console.anim.percent = Clamp(g_console.anim.percent + 0.01f, 0.f, 1.f);
     g_console.anim.timer = 0.f;
     if (g_console.anim.percent >= 1.f) {
       g_console.anim.state = CONSOLE_OPENED;
     }
-  } else if (g_console.anim.state == CONSOLE_CLOSING && g_console.anim.timer > 0.001f) {
+  } else if (g_console.anim.state == CONSOLE_CLOSING &&
+             g_console.anim.timer > 0.001f) {
     g_console.anim.percent = Clamp(g_console.anim.percent - 0.01f, 0.f, 1.f);
     g_console.anim.timer = 0.f;
     if (g_console.anim.percent <= 0.f) {
@@ -403,12 +383,13 @@ Color console_get_font_color() { return g_console.font_color; }
 // -------------------------------------------------------------------------------------
 
 void console_builtin_exit(int len, int *c) {
+  int ec = 0;
   if (len > 1) {
     console_writeln("Error: command 'exit' does only take one argument");
     return;
   }
 
-  exit(0);
+  exit(ec);
 }
 
 void console_builtin_clear(int len, int *c) {
@@ -420,4 +401,12 @@ void console_builtin_clear(int len, int *c) {
   for (int i = 0; i < N_LINES; ++i) {
     g_console.text[i].used = 0;
   }
+}
+
+void console_builtin_help(int len, int *c) {
+  console_writeln("builtin help:");
+  console_writeln("    clear               : clears the text pane of text");
+  console_writeln(
+      "    exit <exit_code>    : exits the program with exit code <exit_code>");
+  console_writeln("");
 }
