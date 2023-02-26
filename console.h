@@ -20,8 +20,6 @@ void console_set_active_key(int key);
 
 bool console_is_active();
 
-int console_count_args(int const *seq, int count);
-
 void console_set_font(Font f, float size);
 
 void console_set_font_size(float font_size);
