@@ -7,30 +7,30 @@
 #include <string.h>
 
 #define N_LINES 255
-#define LINE_SIZE 255
+#define LINE_SIZE 1024
 #define N_DECISIONS 255
 
 #define BACKSPACE_DELETE_FIRST 0.5f
 #define BACKSPACE_DELETE .025f
 
-static inline bool is_white_space(int c) {
-  return (int)('\n') == c || (int)(' ') == c || (int)('\t') == c ||
-         (int)('\f') == c || (int)('\v') == c || (int)('\r') == c;
+static inline bool is_white_space(char c) {
+  return ('\n') == c || (' ') == c || ('\t') == c || ('\f') == c ||
+         ('\v') == c || ('\r') == c;
 }
 
-static inline bool is_quote(int c) { return (c == 34 || c == 39); }
+static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
-void console_builtin_clear(int len, int *c);
-void console_builtin_exit(int len, int *c);
+void console_builtin_clear(int len, char const *c);
+void console_builtin_exit(int len, char const *c);
 
 struct decisions {
   const char *key[N_DECISIONS];
-  void (*value[N_DECISIONS])(int, int *);
+  void (*value[N_DECISIONS])(int, char *);
   int used;
 };
 
 struct buf {
-  int chs[LINE_SIZE];
+  char chs[LINE_SIZE];
   int used;
 };
 
@@ -41,13 +41,16 @@ void buf_cpy(struct buf *dst, struct buf *src) {
   }
 }
 
-void buf_put_char(struct buf *buf, int c) {
+void buf_put_char(struct buf *buf, char c) {
   if (buf->used < LINE_SIZE) {
     buf->chs[buf->used++] = c;
   }
 }
 
-void buf_reset(struct buf *buf) { buf->used = 0; }
+void buf_reset(struct buf *buf) {
+  buf->used = 0;
+  memset(buf->chs, '\0', LINE_SIZE);
+}
 
 bool buf_equal(struct buf *a, struct buf *b) {
   if (a->used != b->used) {
@@ -148,9 +151,7 @@ void console_init() {
 void console_writeln(char const *blah) {
   struct buf *b = g_console.text;
   b->used = (int)strlen(blah);
-  for (int i = 0; i < b->used; ++i) {
-    b->chs[i] = (int)blah[i];
-  }
+  memcpy(b->chs, blah, b->used);
   buf_array_shift_up(g_console.text, N_LINES);
 }
 
@@ -168,65 +169,85 @@ void console_fwriteln(char const *format, ...) {
 
   struct buf *b = g_console.text;
   b->used = written;
-  for (int i = 0; i < b->used; ++i) {
-    b->chs[i] = (int)buffer[i];
-  }
+  memcpy(b->chs, buffer, b->used);
 
   va_end(args);
 
   buf_array_shift_up(g_console.text, N_LINES);
 }
 
-void console_register(const char *name, void (*f)(int, int *)) {
+void console_register(const char *name, void (*f)(int, char const *)) {
   int j = g_console.decisions.used;
   g_console.decisions.key[j] = name;
   g_console.decisions.value[j] = f;
   g_console.decisions.used++;
 }
 
-// scan command line and find out which command to run
-void console_scan() {
+
+int console_parse_prefix(char *buffer, int buffer_length) {
   struct buf *prompt_line = g_console.text;
   if (prompt_line->used == 0) {
-    return; // empty input
+    return -1; // empty input
   }
+
+  memset(buffer, '\0', buffer_length);
 
   int prefix_end = 0, prefix_start = 0, prefix_len = 0;
 
-  // eat prefix whitespace
   for (; prefix_start < prompt_line->used; ++prefix_start) {
     if (!is_white_space(prompt_line->chs[prefix_start])) {
       break;
     }
   }
 
-  // find end of command verb
   for (prefix_end = prefix_start; prefix_end < prompt_line->used;
        ++prefix_end) {
     if (is_white_space(prompt_line->chs[prefix_end])) {
       break;
     }
   }
+
   prefix_len = (prefix_end - prefix_start);
+
+  if (prefix_len > (buffer_length - 1)) {
+    return -1;
+  }
+
+  if (memcpy(buffer, prompt_line->chs + prefix_start, prefix_len) == NULL) {
+    return -1;
+  }
+  buffer[buffer_length - 1] = '\0';
+
+  return prefix_end;
+}
+
+
+// scan command line and find out which command to run
+void console_scan() {
+  static char prefix[LINE_SIZE];
+
+  struct buf *prompt_line = g_console.text;
+  if (prompt_line->used == 0) {
+    return; // empty input
+  }
+
+  int prefix_end = console_parse_prefix(prefix, LINE_SIZE);
+  if (prefix_end == -1) {
+    console_fwriteln("Error: No such command");
+    return;
+  }
+
+  int prefix_len = ((int)strlen(prefix));
 
   for (int decision_index = 0; decision_index < g_console.decisions.used;
        ++decision_index) {
-    bool prefix_match = true;
 
     const char *key = g_console.decisions.key[decision_index];
-    size_t key_length = strlen(key);
-    if (key_length < prefix_len) {
+    if (strlen(key) < prefix_len) {
       continue;
     }
 
-    for (int i = prefix_start; i < prefix_end && i < prompt_line->used; i++) {
-      if (prompt_line->chs[i] != ((int)key[(i - prefix_start)])) {
-        prefix_match = false;
-        break;
-      }
-    }
-
-    if (prefix_match) {
+    if (strcmp(prefix, key) == 0) {
       int start_of_args = prefix_end;
       for (; start_of_args < prompt_line->used &&
              is_white_space(prompt_line->chs[start_of_args]);
@@ -234,12 +255,12 @@ void console_scan() {
         ;
 
       (*g_console.decisions.value[decision_index])(
-          prompt_line->used - start_of_args, prompt_line->chs + start_of_args);
+          (prompt_line->used - start_of_args), prompt_line->chs + start_of_args);
       return;
     }
   }
 
-  console_writeln("Error: No such command");
+  console_fwriteln("Error: %s: No such command", prefix);
 }
 
 static inline void console_update_animation() {
@@ -312,7 +333,7 @@ void console_update() {
   if (IsKeyPressed(KEY_BACKSPACE)) {
     g_console.backspace.down = true;
     if (g_console.text[0].used > 0) {
-      g_console.text[0].used--;
+      g_console.text[0].chs[--(g_console.text[0].used)] = '\0';
     }
   }
 
@@ -326,7 +347,7 @@ void console_update() {
     g_console.backspace.timer += GetFrameTime();
     if (g_console.text[0].used > 0 &&
         g_console.backspace.timer > g_console.backspace.timeout) {
-      g_console.text[0].used--;
+      g_console.text[0].chs[--(g_console.text[0].used)] = '\0';
       g_console.backspace.timer = 0.f;
       g_console.backspace.timeout = BACKSPACE_DELETE;
     } else if (g_console.text[0].used == 0) {
@@ -336,26 +357,30 @@ void console_update() {
 
   int c = GetCharPressed();
   if (c != 0) {
-    buf_put_char(&g_console.text[0], c);
+    buf_put_char(&g_console.text[0], (char)c);
   }
 }
 
 void console_render() {
   DrawRectangleRec(g_console.window, g_console.background_color);
 
-  for (int i = 0; i < N_LINES; ++i) {
+  DrawTextEx(g_console.font, g_console.text[0].chs,
+               (Vector2){.x = 0, .y = (g_console.window.y + g_console.window.height) - (g_console.font_size + 2.f)},
+               g_console.font_size, 1.2f, g_console.font_color);
+/*
+  g_console.text[0].chs[g_console.text[0].used] = '_';
+  if (g_console.text[0].used < (LINE_SIZE - 1)) {
+    g_console.text[0].chs[g_console.text[0].used + 1] = '\0';
+  }
+*/
+  for (int i = 1; i < N_LINES; ++i) {
     float hn = (g_console.window.y + g_console.window.height) -
                ((g_console.font_size + 2.f) * (i + 1));
 
-    int len = g_console.text[i].used;
-    if (i == 0) {
-      g_console.text[0].chs[g_console.text[i].used] = (int)'_';
-      len = g_console.text[i].used + 1;
-    }
 
-    DrawTextCodepoints(g_console.font, g_console.text[i].chs, len,
-                       (Vector2){.x = 0, .y = hn}, g_console.font_size, 1.5,
-                       g_console.font_color);
+    DrawTextEx(g_console.font, g_console.text[i].chs,
+               (Vector2){.x = 0, .y = hn}, g_console.font_size, 1.2f,
+               g_console.font_color);
   }
 }
 
@@ -382,7 +407,7 @@ Color console_get_font_color() { return g_console.font_color; }
 // builtins
 // -------------------------------------------------------------------------------------
 
-void console_builtin_exit(int len, int *c) {
+void console_builtin_exit(int len, char const *c) {
   int ec = 0;
   if (len > 1) {
     console_writeln("Error: command 'exit' does only take one argument");
@@ -392,7 +417,7 @@ void console_builtin_exit(int len, int *c) {
   exit(ec);
 }
 
-void console_builtin_clear(int len, int *c) {
+void console_builtin_clear(int len, char const *c) {
   if (len > 0) {
     console_writeln("Error: command 'clear' does not take any arguments");
     return;
@@ -403,7 +428,7 @@ void console_builtin_clear(int len, int *c) {
   }
 }
 
-void console_builtin_help(int len, int *c) {
+void console_builtin_help(int len, char const *c) {
   console_writeln("builtin help:");
   console_writeln("    clear               : clears the text pane of text");
   console_writeln(

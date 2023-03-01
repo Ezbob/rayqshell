@@ -6,7 +6,7 @@
 #include "console.h"
 #include "console_args.h"
 
-void c_print(int cs, int *cc) {
+void c_print(int cs, char const *cc) {
   struct console_arg_iter iter = console_arg_iter_init(cc, cs);
   struct console_arg arg;
 
@@ -19,7 +19,7 @@ void c_print(int cs, int *cc) {
 
 }
 
-void command_pwd(int cs, int *cc) {
+void command_pwd(int cs, char const *cc) {
   if (cs > 0) {
     console_writeln("'ls' does not take any arguments");
     return;

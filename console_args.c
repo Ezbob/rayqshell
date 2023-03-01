@@ -2,12 +2,12 @@
 #include "console_args.h"
 #include "raylib.h"
 
-static inline bool is_white_space(int c) {
-  return (int)('\n') == c || (int)(' ') == c || (int)('\t') == c ||
-         (int)('\f') == c || (int)('\v') == c || (int)('\r') == c;
+static inline bool is_white_space(char c) {
+  return ('\n') == c || (' ') == c || ('\t') == c ||
+         ('\f') == c || ('\v') == c || ('\r') == c;
 }
 
-static inline bool is_quote(int c) { return (c == 34 || c == 39); }
+static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
 
 int console_arg_iter_count_args(struct console_arg_iter const *it) {
@@ -29,7 +29,7 @@ int console_arg_iter_count_args(struct console_arg_iter const *it) {
   return arg_count;
 }
 
-struct console_arg_iter console_arg_iter_init(int *chs, int count) {
+struct console_arg_iter console_arg_iter_init(char *chs, int count) {
   return (struct console_arg_iter) {
     .next = 0,
     .chrs = chs,
@@ -46,7 +46,7 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg 
   } arg_t = UNQUOTED;
 
   for (; iter->next < iter->chr_count; ++iter->next) {
-    int c = iter->chrs[iter->next];
+    char c = iter->chrs[iter->next];
     if (!is_white_space(c)) {
       break;
     }
@@ -62,13 +62,13 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg 
   }
 
   int istart = iter->next;
-  int *start = iter->chrs + iter->next;
+  char *start = iter->chrs + iter->next;
   int size = 0;
 
   if (arg_t == QUOTED) {
     int found_end_quote = -1;
     for (; iter->next < iter->chr_count; ++iter->next, size++) {
-      int c = iter->chrs[iter->next];
+      char c = iter->chrs[iter->next];
       if (is_quote(c)) {
         found_end_quote = iter->next;
         break;
@@ -81,7 +81,7 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg 
     }
 
     for (; iter->next < iter->chr_count; ++iter->next) {
-      int c = iter->chrs[iter->next];
+      char c = iter->chrs[iter->next];
       if (is_white_space(c)) {
         break; // position interator at next whitespace or at end of string
       }
@@ -90,7 +90,7 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg 
   } else if (arg_t == UNQUOTED) {
 
     for (; iter->next < iter->chr_count; ++iter->next, size++) {
-      int c = iter->chrs[iter->next];
+      char c = iter->chrs[iter->next];
       if (is_white_space(c)) {
         break;
       } else if (is_quote(c)) {

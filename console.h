@@ -14,7 +14,7 @@ void console_writeln(char const *blah);
 
 void console_fwriteln(char const *format, ...);
 
-void console_register(const char *name, void (*decision_f)(int , int*));
+void console_register(const char *name, void (*decision_f)(int , char const*));
 
 void console_set_active_key(int key);
 

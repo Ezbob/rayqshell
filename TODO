@@ -1,7 +1,8 @@
-[ ] implement scrolling
 [ ] cursor placement (other than the end of the text)
   [ ] inserts at cursor
   [ ] deletes at cursor
+
+[ ] implement scrolling
 
 # basic file system navigation
 [ ] "cd" implementation
