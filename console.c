@@ -132,7 +132,6 @@ struct console {
     int index;
     bool on;
     float blink_timer;
-    char replacement;
   } cursor;
 
   struct buf show;
@@ -368,6 +367,7 @@ static inline console_handle_enter() {
     buf_reset(g_console.text);
 
     g_console.hist.index = 0;
+    g_console.cursor.index = 0;
   }
 }
 
@@ -383,10 +383,12 @@ void console_update() {
                                ? g_console.hist.index + 1
                                : g_console.hist.used;
     buf_cpy(g_console.text, g_console.hist.buffer + g_console.hist.index);
+    g_console.cursor.index = g_console.text->used;
   } else if (IsKeyPressed(KEY_DOWN)) {
     g_console.hist.index =
         g_console.hist.index > 0 ? g_console.hist.index - 1 : 0;
     buf_cpy(g_console.text, g_console.hist.buffer + g_console.hist.index);
+    g_console.cursor.index = g_console.text->used;
   }
 
   if (IsKeyPressed(KEY_LEFT)) {
@@ -416,7 +418,6 @@ void console_update() {
   buf_cpy(&g_console.show, g_console.text);
 
   if (g_console.cursor.on) {
-    g_console.cursor.replacement = g_console.text->chs[g_console.cursor.index];
     g_console.show.chs[g_console.cursor.index] = '_';
   }
 }
@@ -468,6 +469,8 @@ void console_builtin_exit(int len, char const *c) {
   if (len > 1) {
     console_writeln("Error: command 'exit' does only take one argument");
     return;
+  } else if (len > 0) {
+    ec = atoi(c);
   }
 
   exit(ec);
