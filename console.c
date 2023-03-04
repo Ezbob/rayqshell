@@ -36,15 +36,32 @@ struct buf {
 
 void buf_cpy(struct buf *dst, struct buf *src) {
   dst->used = src->used;
-  for (int i = 0; i < LINE_SIZE; ++i) {
-    dst->chs[i] = src->chs[i];
-  }
+  memcpy(dst->chs, src->chs, LINE_SIZE);
 }
 
 void buf_put_char(struct buf *buf, char c) {
   if (buf->used < LINE_SIZE) {
     buf->chs[buf->used++] = c;
   }
+}
+
+void buf_put_char_at(struct buf *buf, int index, char c) {
+  buf->used += 1;
+  char ch = buf->chs[index];
+  for (int i = index + 1; i < buf->used; ++i) {
+    char tmp = buf->chs[i];
+    buf->chs[i] = ch;
+    ch = tmp;
+  }
+  buf->chs[index] = c;
+}
+
+void buf_del_char_at(struct buf *buf, int index) {
+  buf->used -= 1;
+  for (int i = index; i < buf->used; ++i) {
+    buf->chs[i] = buf->chs[i + 1];
+  }
+  buf->chs[buf->used] = '\0';
 }
 
 void buf_reset(struct buf *buf) {
@@ -111,6 +128,14 @@ struct console {
     } state;
   } anim;
 
+  struct cursor {
+    int index;
+    bool on;
+    float blink_timer;
+    char replacement;
+  } cursor;
+
+  struct buf show;
 } g_console;
 
 void console_init() {
@@ -143,6 +168,10 @@ void console_init() {
   g_console.anim.timer = 0.f;
   g_console.anim.percent = 0.f;
   g_console.anim.state = CONSOLE_CLOSED;
+
+  g_console.cursor.index = 0;
+  g_console.cursor.on = true;
+  g_console.cursor.blink_timer = 0;
 
   console_register("exit", console_builtin_exit);
   console_register("clear", console_builtin_clear);
@@ -183,7 +212,6 @@ void console_register(const char *name, void (*f)(int, char const *)) {
   g_console.decisions.used++;
 }
 
-
 int console_parse_prefix(char *buffer, int buffer_length) {
   struct buf *prompt_line = g_console.text;
   if (prompt_line->used == 0) {
@@ -221,7 +249,6 @@ int console_parse_prefix(char *buffer, int buffer_length) {
   return prefix_end;
 }
 
-
 // scan command line and find out which command to run
 void console_scan() {
   static char prefix[LINE_SIZE];
@@ -255,7 +282,8 @@ void console_scan() {
         ;
 
       (*g_console.decisions.value[decision_index])(
-          (prompt_line->used - start_of_args), prompt_line->chs + start_of_args);
+          (prompt_line->used - start_of_args),
+          prompt_line->chs + start_of_args);
       return;
     }
   }
@@ -296,6 +324,53 @@ static inline void console_update_animation() {
   }
 }
 
+static inline void console_handle_backspace() {
+  if (IsKeyPressed(KEY_BACKSPACE)) {
+    g_console.backspace.down = true;
+    buf_del_char_at(g_console.text, g_console.cursor.index);
+    g_console.cursor.index--;
+  }
+
+  if (IsKeyReleased(KEY_BACKSPACE)) {
+    g_console.backspace.down = false;
+    g_console.backspace.timer = 0.f;
+    g_console.backspace.timeout = BACKSPACE_DELETE_FIRST;
+  }
+
+  if (g_console.backspace.down) {
+    g_console.backspace.timer += GetFrameTime();
+    if (g_console.text[0].used > 0 &&
+        g_console.backspace.timer > g_console.backspace.timeout) {
+
+      buf_del_char_at(g_console.text, g_console.cursor.index);
+
+      g_console.backspace.timer = 0.f;
+      g_console.backspace.timeout = BACKSPACE_DELETE;
+      g_console.cursor.index--;
+    } else if (g_console.text[0].used == 0) {
+      g_console.backspace.down = false;
+    }
+  }
+}
+
+static inline console_handle_enter() {
+  if (IsKeyPressed(KEY_ENTER) &&
+      !buf_equal(g_console.hist.buffer, g_console.text)) {
+    buf_cpy(g_console.hist.buffer, g_console.text);
+    buf_array_shift_up(g_console.hist.buffer, N_LINES);
+    g_console.hist.used =
+        g_console.hist.used < N_LINES ? g_console.hist.used + 1 : (N_LINES - 1);
+  }
+
+  if (IsKeyPressed(KEY_ENTER)) {
+    buf_array_shift_up(g_console.text, N_LINES);
+    console_scan();
+    buf_reset(g_console.text);
+
+    g_console.hist.index = 0;
+  }
+}
+
 void console_update() {
   console_update_animation();
 
@@ -314,69 +389,50 @@ void console_update() {
     buf_cpy(g_console.text, g_console.hist.buffer + g_console.hist.index);
   }
 
-  if (IsKeyPressed(KEY_ENTER) &&
-      !buf_equal(g_console.hist.buffer, g_console.text)) {
-    buf_cpy(g_console.hist.buffer, g_console.text);
-    buf_array_shift_up(g_console.hist.buffer, N_LINES);
-    g_console.hist.used =
-        g_console.hist.used < N_LINES ? g_console.hist.used + 1 : (N_LINES - 1);
+  if (IsKeyPressed(KEY_LEFT)) {
+    g_console.cursor.index -= (g_console.cursor.index > 0) ? 1 : 0;
+  } else if (IsKeyPressed(KEY_RIGHT)) {
+    g_console.cursor.index +=
+        (g_console.cursor.index < g_console.text[0].used) ? 1 : 0;
   }
 
-  if (IsKeyPressed(KEY_ENTER)) {
-    buf_array_shift_up(g_console.text, N_LINES);
-    console_scan();
-    buf_reset(g_console.text);
+  console_handle_enter();
 
-    g_console.hist.index = 0;
-  }
-
-  if (IsKeyPressed(KEY_BACKSPACE)) {
-    g_console.backspace.down = true;
-    if (g_console.text[0].used > 0) {
-      g_console.text[0].chs[--(g_console.text[0].used)] = '\0';
-    }
-  }
-
-  if (IsKeyReleased(KEY_BACKSPACE)) {
-    g_console.backspace.down = false;
-    g_console.backspace.timer = 0.f;
-    g_console.backspace.timeout = BACKSPACE_DELETE_FIRST;
-  }
-
-  if (g_console.backspace.down) {
-    g_console.backspace.timer += GetFrameTime();
-    if (g_console.text[0].used > 0 &&
-        g_console.backspace.timer > g_console.backspace.timeout) {
-      g_console.text[0].chs[--(g_console.text[0].used)] = '\0';
-      g_console.backspace.timer = 0.f;
-      g_console.backspace.timeout = BACKSPACE_DELETE;
-    } else if (g_console.text[0].used == 0) {
-      g_console.backspace.down = false;
-    }
-  }
+  console_handle_backspace();
 
   int c = GetCharPressed();
   if (c != 0) {
-    buf_put_char(&g_console.text[0], (char)c);
+    buf_put_char_at(&g_console.text[0], g_console.cursor.index, (char)c);
+    g_console.cursor.index +=
+        (g_console.cursor.index < g_console.text[0].used) ? 1 : 0;
+  }
+
+  g_console.cursor.blink_timer += GetFrameTime();
+  if (g_console.cursor.blink_timer >= 0.5f) {
+    g_console.cursor.on = !g_console.cursor.on;
+    g_console.cursor.blink_timer = 0.f;
+  }
+
+  buf_cpy(&g_console.show, g_console.text);
+
+  if (g_console.cursor.on) {
+    g_console.cursor.replacement = g_console.text->chs[g_console.cursor.index];
+    g_console.show.chs[g_console.cursor.index] = '_';
   }
 }
 
 void console_render() {
   DrawRectangleRec(g_console.window, g_console.background_color);
 
-  DrawTextEx(g_console.font, g_console.text[0].chs,
-               (Vector2){.x = 0, .y = (g_console.window.y + g_console.window.height) - (g_console.font_size + 2.f)},
-               g_console.font_size, 1.2f, g_console.font_color);
-/*
-  g_console.text[0].chs[g_console.text[0].used] = '_';
-  if (g_console.text[0].used < (LINE_SIZE - 1)) {
-    g_console.text[0].chs[g_console.text[0].used + 1] = '\0';
-  }
-*/
+  float prompt_height = (g_console.window.y + g_console.window.height) -
+                        (g_console.font_size + 2.f);
+  DrawTextEx(g_console.font, g_console.show.chs,
+             (Vector2){.x = 0, .y = prompt_height}, g_console.font_size, 1.2f,
+             g_console.font_color);
+
   for (int i = 1; i < N_LINES; ++i) {
     float hn = (g_console.window.y + g_console.window.height) -
                ((g_console.font_size + 2.f) * (i + 1));
-
 
     DrawTextEx(g_console.font, g_console.text[i].chs,
                (Vector2){.x = 0, .y = hn}, g_console.font_size, 1.2f,
