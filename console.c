@@ -26,12 +26,6 @@ static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 void console_builtin_clear(int len, char const *c);
 void console_builtin_exit(int len, char const *c);
 
-struct decisions {
-  const char *key[N_DECISIONS];
-  void (*value[N_DECISIONS])(int, char *);
-  int used;
-};
-
 struct buf {
   char chs[LINE_SIZE];
   int used;
@@ -94,33 +88,37 @@ void buf_array_shift_up(struct buf *array, int size) {
   }
 }
 
-struct history {
-  struct buf buffer[N_LINES];
-  unsigned index;
-  unsigned used;
-};
-
 struct console {
   struct buf text[N_LINES];
   Rectangle window;
-  struct decisions decisions;
+
   int key;
 
   Font font;
   float font_size;
-  Color font_color;
 
   Color background_color;
+  Color font_color;
 
-  struct backspace {
+  struct {
+    const char *key[N_DECISIONS];
+    void (*value[N_DECISIONS])(int, char *);
+    int used;
+  } decisions;
+
+  struct {
     bool down;
     float timer;
     float timeout;
   } backspace;
 
-  struct history hist;
+  struct {
+    struct buf buffer[N_LINES];
+    unsigned index;
+    unsigned used;
+  } history;
 
-  struct enable_animation {
+  struct {
     float percent;
     float timer;
     enum console_enable_animation {
@@ -129,9 +127,9 @@ struct console {
       CONSOLE_OPENING,
       CONSOLE_CLOSING,
     } state;
-  } anim;
+  } opening_animation;
 
-  struct cursor {
+  struct {
     int index;
     int direction;
     float move_timer;
@@ -166,13 +164,13 @@ void console_init() {
   g_console.backspace.down = false;
   g_console.backspace.timer = 0.f;
   g_console.backspace.timeout = 0.5f;
-  g_console.hist.index = g_console.hist.used = 0;
+  g_console.history.index = g_console.history.used = 0;
   g_console.background_color = (Color){.r = 0, .b = 0, .g = 0, .a = 210};
   g_console.font_color = (Color){.r = 0, .b = 0, .g = 255, .a = 255};
 
-  g_console.anim.timer = 0.f;
-  g_console.anim.percent = 0.f;
-  g_console.anim.state = CONSOLE_CLOSED;
+  g_console.opening_animation.timer = 0.f;
+  g_console.opening_animation.percent = 0.f;
+  g_console.opening_animation.state = CONSOLE_CLOSED;
 
   g_console.cursor.index = 0;
   g_console.cursor.on = true;
@@ -300,33 +298,33 @@ void console_scan() {
 
 static inline void console_update_animation() {
   if (IsKeyPressed(g_console.key)) {
-    if (g_console.anim.state == CONSOLE_CLOSED) {
-      g_console.anim.state = CONSOLE_OPENING;
-    } else if (g_console.anim.state == CONSOLE_OPENED) {
-      g_console.anim.state = CONSOLE_CLOSING;
+    if (g_console.opening_animation.state == CONSOLE_CLOSED) {
+      g_console.opening_animation.state = CONSOLE_OPENING;
+    } else if (g_console.opening_animation.state == CONSOLE_OPENED) {
+      g_console.opening_animation.state = CONSOLE_CLOSING;
     }
   }
 
-  if (g_console.anim.state == CONSOLE_CLOSING ||
-      g_console.anim.state == CONSOLE_OPENING) {
-    g_console.anim.timer += GetFrameTime();
+  if (g_console.opening_animation.state == CONSOLE_CLOSING ||
+      g_console.opening_animation.state == CONSOLE_OPENING) {
+    g_console.opening_animation.timer += GetFrameTime();
     g_console.window.height =
-        Lerp(0.f, GetScreenHeight() / 3.f, g_console.anim.percent);
+        Lerp(0.f, GetScreenHeight() / 3.f, g_console.opening_animation.percent);
   }
 
-  if (g_console.anim.state == CONSOLE_OPENING &&
-      g_console.anim.timer > 0.001f) {
-    g_console.anim.percent = Clamp(g_console.anim.percent + 0.01f, 0.f, 1.f);
-    g_console.anim.timer = 0.f;
-    if (g_console.anim.percent >= 1.f) {
-      g_console.anim.state = CONSOLE_OPENED;
+  if (g_console.opening_animation.state == CONSOLE_OPENING &&
+      g_console.opening_animation.timer > 0.001f) {
+    g_console.opening_animation.percent = Clamp(g_console.opening_animation.percent + 0.01f, 0.f, 1.f);
+    g_console.opening_animation.timer = 0.f;
+    if (g_console.opening_animation.percent >= 1.f) {
+      g_console.opening_animation.state = CONSOLE_OPENED;
     }
-  } else if (g_console.anim.state == CONSOLE_CLOSING &&
-             g_console.anim.timer > 0.001f) {
-    g_console.anim.percent = Clamp(g_console.anim.percent - 0.01f, 0.f, 1.f);
-    g_console.anim.timer = 0.f;
-    if (g_console.anim.percent <= 0.f) {
-      g_console.anim.state = CONSOLE_CLOSED;
+  } else if (g_console.opening_animation.state == CONSOLE_CLOSING &&
+             g_console.opening_animation.timer > 0.001f) {
+    g_console.opening_animation.percent = Clamp(g_console.opening_animation.percent - 0.01f, 0.f, 1.f);
+    g_console.opening_animation.timer = 0.f;
+    if (g_console.opening_animation.percent <= 0.f) {
+      g_console.opening_animation.state = CONSOLE_CLOSED;
     }
   }
 }
@@ -405,43 +403,45 @@ static inline void console_handle_cursor_move() {
 }
 
 static inline console_handle_enter() {
-  if (IsKeyPressed(KEY_ENTER) &&
-      !buf_equal(g_console.hist.buffer, g_console.text)) {
-    buf_cpy(g_console.hist.buffer, g_console.text);
-    buf_array_shift_up(g_console.hist.buffer, N_LINES);
-    g_console.hist.used =
-        g_console.hist.used < N_LINES ? g_console.hist.used + 1 : (N_LINES - 1);
-  }
-
   if (IsKeyPressed(KEY_ENTER)) {
+    if (!buf_equal(g_console.history.buffer, g_console.text)) {
+      buf_cpy(g_console.history.buffer, g_console.text);
+      buf_array_shift_up(g_console.history.buffer, N_LINES);
+      g_console.history.used =
+          g_console.history.used < N_LINES ? g_console.history.used + 1 : (N_LINES - 1);
+    }
+
     buf_array_shift_up(g_console.text, N_LINES);
     console_scan();
     buf_reset(g_console.text);
 
-    g_console.hist.index = 0;
-    g_console.cursor.index = 0;
+    g_console.history.index = g_console.cursor.index = 0;
+  }
+}
+
+static inline console_handle_history() {
+  if (IsKeyPressed(KEY_UP)) {
+    g_console.history.index = g_console.history.index < g_console.history.used
+                               ? g_console.history.index + 1
+                               : g_console.history.used;
+    buf_cpy(g_console.text, g_console.history.buffer + g_console.history.index);
+    g_console.cursor.index = g_console.text->used;
+  } else if (IsKeyPressed(KEY_DOWN)) {
+    g_console.history.index =
+        g_console.history.index > 0 ? g_console.history.index - 1 : 0;
+    buf_cpy(g_console.text, g_console.history.buffer + g_console.history.index);
+    g_console.cursor.index = g_console.text->used;
   }
 }
 
 void console_update() {
   console_update_animation();
 
-  if (g_console.anim.state != CONSOLE_OPENED) {
+  if (g_console.opening_animation.state != CONSOLE_OPENED) {
     return;
   }
 
-  if (IsKeyPressed(KEY_UP)) {
-    g_console.hist.index = g_console.hist.index < g_console.hist.used
-                               ? g_console.hist.index + 1
-                               : g_console.hist.used;
-    buf_cpy(g_console.text, g_console.hist.buffer + g_console.hist.index);
-    g_console.cursor.index = g_console.text->used;
-  } else if (IsKeyPressed(KEY_DOWN)) {
-    g_console.hist.index =
-        g_console.hist.index > 0 ? g_console.hist.index - 1 : 0;
-    buf_cpy(g_console.text, g_console.hist.buffer + g_console.hist.index);
-    g_console.cursor.index = g_console.text->used;
-  }
+  console_handle_history();
 
   console_handle_cursor_move();
 
@@ -497,7 +497,7 @@ void console_set_font(Font f, float size) {
   g_console.font_size = size;
 }
 
-bool console_is_active() { return g_console.anim.state == CONSOLE_OPENED; }
+bool console_is_active() { return g_console.opening_animation.state == CONSOLE_OPENED; }
 
 void console_set_background_color(Color c) { g_console.background_color = c; }
 
