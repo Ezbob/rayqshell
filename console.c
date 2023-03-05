@@ -333,7 +333,7 @@ static inline void console_handle_backspace() {
   if (IsKeyPressed(KEY_BACKSPACE)) {
     g_console.backspace.down = true;
     buf_del_char_at(g_console.text, g_console.cursor.index);
-    g_console.cursor.index--;
+    g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
   }
 
   if (IsKeyReleased(KEY_BACKSPACE)) {
@@ -351,7 +351,7 @@ static inline void console_handle_backspace() {
 
       g_console.backspace.timer = 0.f;
       g_console.backspace.timeout = BACKSPACE_DELETE;
-      g_console.cursor.index--;
+      g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
     } else if (g_console.text[0].used == 0) {
       g_console.backspace.down = false;
     }
@@ -451,9 +451,8 @@ void console_update() {
 
   int c = GetCharPressed();
   if (c != 0) {
-    buf_put_char_at(&g_console.text[0], g_console.cursor.index, (char)c);
-    g_console.cursor.index +=
-        (g_console.cursor.index < g_console.text[0].used) ? 1 : 0;
+    buf_put_char_at(&g_console.text[0], g_console.cursor.index, c);
+    g_console.cursor.index += 1;
   }
 
   if (g_console.cursor.direction == 0) {

@@ -51,9 +51,9 @@ int main(int argc, char **argv) {
 
   console_init();
 
-  Font f = LoadFontEx("resources/DotGothic16-Regular.ttf", 16, NULL, 1024);
+  Font f = LoadFontEx("resources/DotGothic16-Regular.ttf", 18, NULL, 1024);
 
-  console_set_font(f, 16);
+  console_set_font(f, 18);
 
   console_register("echo", c_print);
   console_register("pwd", command_pwd);

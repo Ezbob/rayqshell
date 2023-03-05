@@ -1,5 +1,5 @@
 [ ] cursor placement (other than the end of the text)
-  [ ] inserts at cursor
+  [x] inserts at cursor
   [ ] deletes at cursor
 
 [ ] implement scrolling
