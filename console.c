@@ -14,7 +14,7 @@
 #define BACKSPACE_DELETE .03f
 
 #define CURSOR_MOVE_FIRST 0.5f
-#define CURSOR_MOVE 0.03f
+#define CURSOR_MOVE .03f
 
 static inline bool is_white_space(char c) {
   return ('\n') == c || (' ') == c || ('\t') == c || ('\f') == c ||
@@ -60,6 +60,28 @@ void buf_del_char_at(struct buf *buf, int index) {
   }
   buf->chs[buf->used] = '\0';
 }
+
+
+static inline int codepoint_size(int ch) {
+  int size = 1;
+  if ((ch & 0xC0) == 0xC0) {
+    size = 2;
+  } else if ((ch & 0xE0) == 0xE0) {
+    size = 3;
+  } else if ((ch & 0xF0) == 0xF0) {
+    size = 4;
+  }
+  return size;
+}
+
+void buf_put_rune_at(struct buf *buf, int index, int ch) {
+
+  int i, bindex;
+  for (i = 0, bindex = 0; bindex < buf->used && i < index; bindex += codepoint_size((int)buf->chs[bindex]), ++i);
+  int size = codepoint_size(ch);
+
+}
+
 
 void buf_reset(struct buf *buf) {
   buf->used = 0;
@@ -138,6 +160,8 @@ struct console {
     bool on;
   } cursor;
 
+  Camera2D pane;
+
   struct buf show;
 } g_console;
 
@@ -178,6 +202,13 @@ void console_init() {
   g_console.cursor.move_timer = 0.f;
   g_console.cursor.direction = 0;
 
+  //g_console.scroller.current_pos = 0;
+  g_console.pane = (Camera2D){
+    .offset = (Vector2){.x=0, .y=0},
+    .rotation = 0.f,
+    .zoom = 1.f,
+  };
+
   console_register("exit", console_builtin_exit);
   console_register("clear", console_builtin_clear);
 }
@@ -186,6 +217,7 @@ void console_writeln(char const *blah) {
   struct buf *b = g_console.text;
   b->used = (int)strlen(blah);
   memcpy(b->chs, blah, b->used);
+  b->chs[b->used] = '\0';
   buf_array_shift_up(g_console.text, N_LINES);
 }
 
@@ -468,10 +500,14 @@ void console_update() {
   if (g_console.cursor.on || g_console.cursor.direction != 0) {
     g_console.show.chs[g_console.cursor.index] = '_';
   }
+
+  g_console.pane.offset.y = Clamp((g_console.pane.offset.y + ((float)GetMouseWheelMove() * g_console.font_size)), 0.f, N_LINES * (g_console.font_size + 2.f));
 }
 
 void console_render() {
   DrawRectangleRec(g_console.window, g_console.background_color);
+  BeginScissorMode((int)g_console.window.x, (int)g_console.window.y, (int)g_console.window.width, (int)g_console.window.height);
+  BeginMode2D(g_console.pane);
 
   float prompt_height = (g_console.window.y + g_console.window.height) -
                         (g_console.font_size + 2.f);
@@ -487,6 +523,8 @@ void console_render() {
                (Vector2){.x = 0, .y = hn}, g_console.font_size, 1.2f,
                g_console.font_color);
   }
+  EndMode2D();
+  EndScissorMode();
 }
 
 void console_set_active_key(int key) { g_console.key = key; }
