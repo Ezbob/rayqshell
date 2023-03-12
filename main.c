@@ -27,9 +27,11 @@ void command_pwd(int cs, char const *cc) {
   console_writeln(GetWorkingDirectory());
 }
 
-void command_ls(int cs, int *cc) {
+void command_ls(int cs, char const *cc) {
   struct console_arg_iter iter = console_arg_iter_init(cc, cs);
-  if (console_arg_iter_count_args(&iter) == 0) {
+  int arg_count = console_arg_iter_count_args(&iter);
+
+  if (arg_count == 0) {
     char const *pwd = GetWorkingDirectory();
 
     FilePathList p = LoadDirectoryFiles(pwd);
@@ -40,7 +42,32 @@ void command_ls(int cs, int *cc) {
 
     UnloadDirectoryFiles(p);
   } else {
+    if (arg_count == 1) {
+      FilePathList p = LoadDirectoryFiles(cc);
 
+      for (unsigned i = 0; i < p.count; ++i) {
+        console_writeln(p.paths[i]);
+      }
+
+      UnloadDirectoryFiles(p);
+      return;
+    }
+
+    struct console_arg arg;
+
+    for (int i = 0; console_arg_iter_next_arg(&iter, &arg) != -1; ++i) {
+      char *c = console_arg_copy_as_cstring(&arg);
+      console_fwriteln("===> '%s'", c);
+
+      FilePathList p = LoadDirectoryFiles(c);
+
+      for (unsigned i = 0; i < p.count; ++i) {
+        console_writeln(p.paths[i]);
+      }
+
+      UnloadDirectoryFiles(p);
+      free(c);
+    }
   }
 }
 

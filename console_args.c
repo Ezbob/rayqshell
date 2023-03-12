@@ -1,6 +1,8 @@
 
 #include "console_args.h"
 #include "raylib.h"
+#include <string.h>
+#include <stdlib.h>
 
 static inline bool is_white_space(char c) {
   return ('\n') == c || (' ') == c || ('\t') == c ||
@@ -29,7 +31,7 @@ int console_arg_iter_count_args(struct console_arg_iter const *it) {
   return arg_count;
 }
 
-struct console_arg_iter console_arg_iter_init(char *chs, int count) {
+struct console_arg_iter console_arg_iter_init(char const *chs, int count) {
   return (struct console_arg_iter) {
     .next = 0,
     .chrs = chs,
@@ -62,7 +64,7 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg 
   }
 
   int istart = iter->next;
-  char *start = iter->chrs + iter->next;
+  char const *start = iter->chrs + iter->next;
   int size = 0;
 
   if (arg_t == QUOTED) {
@@ -102,4 +104,24 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg 
   arg->start = start;
   arg->size = size;
   return 0;
+}
+
+char *console_arg_copy_as_cstring(struct console_arg *a) {
+  if (a->size == 0) {
+    return NULL;
+  }
+
+  char *m = malloc((a->size + 1) * sizeof(char));
+  if (!m) {
+    return NULL;
+  }
+
+  char * ss = memcpy(m, a->start, a->size);
+  if (!ss) {
+    return NULL;
+  }
+
+  m[a->size] = '\0';
+
+  return m;
 }

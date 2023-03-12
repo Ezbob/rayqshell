@@ -26,92 +26,9 @@ static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 void console_builtin_clear(int len, char const *c);
 void console_builtin_exit(int len, char const *c);
 
-struct buf {
-  char chs[LINE_SIZE];
-  int used;
-};
-
-void buf_cpy(struct buf *dst, struct buf *src) {
-  dst->used = src->used;
-  memcpy(dst->chs, src->chs, LINE_SIZE);
-}
-
-void buf_put_char(struct buf *buf, char c) {
-  if (buf->used < LINE_SIZE) {
-    buf->chs[buf->used++] = c;
-  }
-}
-
-void buf_put_char_at(struct buf *buf, int index, char c) {
-  buf->used += 1;
-  char ch = buf->chs[index];
-  for (int i = index + 1; i < buf->used; ++i) {
-    char tmp = buf->chs[i];
-    buf->chs[i] = ch;
-    ch = tmp;
-  }
-  buf->chs[index] = c;
-}
-
-void buf_del_char_at(struct buf *buf, int index) {
-  buf->used -= 1;
-  for (int i = index; i < buf->used; ++i) {
-    buf->chs[i] = buf->chs[i + 1];
-  }
-  buf->chs[buf->used] = '\0';
-}
-
-
-static inline int codepoint_size(int ch) {
-  int size = 1;
-  if ((ch & 0xC0) == 0xC0) {
-    size = 2;
-  } else if ((ch & 0xE0) == 0xE0) {
-    size = 3;
-  } else if ((ch & 0xF0) == 0xF0) {
-    size = 4;
-  }
-  return size;
-}
-
-void buf_put_rune_at(struct buf *buf, int index, int ch) {
-
-  int i, bindex;
-  for (i = 0, bindex = 0; bindex < buf->used && i < index; bindex += codepoint_size((int)buf->chs[bindex]), ++i);
-  int size = codepoint_size(ch);
-
-}
-
-
-void buf_reset(struct buf *buf) {
-  buf->used = 0;
-  memset(buf->chs, '\0', LINE_SIZE);
-}
-
-bool buf_equal(struct buf *a, struct buf *b) {
-  if (a->used != b->used) {
-    return false;
-  }
-  for (int i = 0; i < a->used; ++i) {
-    if (a->chs[i] != b->chs[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-void buf_array_shift_up(struct buf *array, int size) {
-  struct buf n, b;
-  buf_cpy(&n, array);
-  for (int i = 1; i < (size - 1); ++i) {
-    buf_cpy(&b, array + i);
-    buf_cpy(array + i, &n);
-    buf_cpy(&n, &b);
-  }
-}
 
 struct console {
-  struct buf text[N_LINES];
+  char text[N_LINES][LINE_SIZE];
   Rectangle window;
 
   int key;
@@ -123,6 +40,7 @@ struct console {
   Color font_color;
 
   struct {
+    char prefix_buffer[LINE_SIZE];
     const char *key[N_DECISIONS];
     void (*value[N_DECISIONS])(int, char *);
     int used;
@@ -135,7 +53,7 @@ struct console {
   } backspace;
 
   struct {
-    struct buf buffer[N_LINES];
+    char buffer[N_LINES][LINE_SIZE];
     unsigned index;
     unsigned used;
   } history;
@@ -143,7 +61,7 @@ struct console {
   struct {
     float percent;
     float timer;
-    enum console_enable_animation {
+    enum {
       CONSOLE_CLOSED,
       CONSOLE_OPENED,
       CONSOLE_OPENING,
@@ -162,12 +80,41 @@ struct console {
 
   Camera2D pane;
 
-  struct buf show;
+  char show_buffer[LINE_SIZE];
 } g_console;
+
+static inline void console_del_char_at(struct console *c, int index) {
+  int i = index;
+  for (; c->text[0][i] != '\0'; ++i) {
+    c->text[0][i] = c->text[0][i + 1];
+  }
+  c->text[0][i + 1] = '\0';
+}
+
+static inline void console_put_char_at(struct console *c, int index, char cha) {
+  char ch = c->text[0][index];
+  for (int i = index + 1; c->text[0][i] != '\0'; ++i) {
+    char tmp = c->text[0][i];
+    c->text[0][i] = ch;
+    ch = tmp;
+  }
+  c->text[0][index] = cha;
+}
+
+static inline void console_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
+  char n[LINE_SIZE], b[LINE_SIZE];
+
+  strcpy(n, *bufs);
+  for (int i = 1; i < (nbufs - 1); ++i) {
+    strcpy(b, bufs[i]);
+    strcpy(bufs[i], n);
+    strcpy(n, b);
+  }
+}
 
 void console_init() {
   for (int i = 0; i < N_LINES; ++i) {
-    g_console.text[i].used = 0;
+    memset(g_console.text + i, '\0', LINE_SIZE);
   }
 
   g_console.window = (Rectangle){
@@ -202,7 +149,6 @@ void console_init() {
   g_console.cursor.move_timer = 0.f;
   g_console.cursor.direction = 0;
 
-  //g_console.scroller.current_pos = 0;
   g_console.pane = (Camera2D){
     .offset = (Vector2){.x=0, .y=0},
     .rotation = 0.f,
@@ -214,32 +160,24 @@ void console_init() {
 }
 
 void console_writeln(char const *blah) {
-  struct buf *b = g_console.text;
-  b->used = (int)strlen(blah);
-  memcpy(b->chs, blah, b->used);
-  b->chs[b->used] = '\0';
-  buf_array_shift_up(g_console.text, N_LINES);
+  strcpy(g_console.text[0], blah);
+
+  console_shift_up(g_console.text, N_LINES);
 }
 
 void console_fwriteln(char const *format, ...) {
   va_list args;
   va_start(args, format);
 
-  char buffer[LINE_SIZE];
-
-  int written = vsnprintf(buffer, LINE_SIZE, format, args);
+  int written = vsnprintf(g_console.text[0], LINE_SIZE, format, args);
   if (written < 0) {
     console_writeln("Fatal error: failed to write to console");
     return;
   }
 
-  struct buf *b = g_console.text;
-  b->used = written;
-  memcpy(b->chs, buffer, b->used);
-
   va_end(args);
 
-  buf_array_shift_up(g_console.text, N_LINES);
+  console_shift_up(g_console.text, N_LINES);
 }
 
 void console_register(const char *name, void (*f)(int, char const *)) {
@@ -250,35 +188,31 @@ void console_register(const char *name, void (*f)(int, char const *)) {
 }
 
 int console_parse_prefix(char *buffer, int buffer_length) {
-  struct buf *prompt_line = g_console.text;
-  if (prompt_line->used == 0) {
+  char *prompt_line = g_console.text[0];
+  int len = (int) strlen(prompt_line);
+  if (len == 0) {
     return -1; // empty input
   }
 
-  memset(buffer, '\0', buffer_length);
-
   int prefix_end = 0, prefix_start = 0, prefix_len = 0;
 
-  for (; prefix_start < prompt_line->used; ++prefix_start) {
-    if (!is_white_space(prompt_line->chs[prefix_start])) {
+  for (; prefix_start < len; ++prefix_start) {
+    if (!is_white_space(prompt_line[prefix_start])) {
       break;
     }
   }
 
-  for (prefix_end = prefix_start; prefix_end < prompt_line->used;
+  for (prefix_end = prefix_start; prefix_end < len;
        ++prefix_end) {
-    if (is_white_space(prompt_line->chs[prefix_end])) {
+    if (is_white_space(prompt_line[prefix_end])) {
       break;
     }
   }
 
   prefix_len = (prefix_end - prefix_start);
 
-  if (prefix_len > (buffer_length - 1)) {
-    return -1;
-  }
-
-  if (memcpy(buffer, prompt_line->chs + prefix_start, prefix_len) == NULL) {
+  memset(buffer, '\0', LINE_SIZE);
+  if (strncpy(buffer, prompt_line + prefix_start, prefix_len) == NULL) {
     return -1;
   }
   buffer[buffer_length - 1] = '\0';
@@ -288,20 +222,19 @@ int console_parse_prefix(char *buffer, int buffer_length) {
 
 // scan command line and find out which command to run
 void console_scan() {
-  static char prefix[LINE_SIZE];
-
-  struct buf *prompt_line = g_console.text;
-  if (prompt_line->used == 0) {
+  char *prompt_line = g_console.history.buffer[0];
+  int len = (int)strlen(prompt_line);
+  if (len == 0) {
     return; // empty input
   }
 
-  int prefix_end = console_parse_prefix(prefix, LINE_SIZE);
+  int prefix_end = console_parse_prefix(g_console.decisions.prefix_buffer, LINE_SIZE);
   if (prefix_end == -1) {
     console_fwriteln("Error: No such command");
     return;
   }
 
-  int prefix_len = ((int)strlen(prefix));
+  int prefix_len = (int)strlen(g_console.decisions.prefix_buffer);
 
   for (int decision_index = 0; decision_index < g_console.decisions.used;
        ++decision_index) {
@@ -311,21 +244,18 @@ void console_scan() {
       continue;
     }
 
-    if (strcmp(prefix, key) == 0) {
+    if (strcmp(g_console.decisions.prefix_buffer, key) == 0) {
       int start_of_args = prefix_end;
-      for (; start_of_args < prompt_line->used &&
-             is_white_space(prompt_line->chs[start_of_args]);
+      for (; start_of_args < len && is_white_space(prompt_line[start_of_args]);
            start_of_args++)
         ;
 
-      (*g_console.decisions.value[decision_index])(
-          (prompt_line->used - start_of_args),
-          prompt_line->chs + start_of_args);
+      (*g_console.decisions.value[decision_index])((len - start_of_args), prompt_line + start_of_args);
       return;
     }
   }
 
-  console_fwriteln("Error: %s: No such command", prefix);
+  console_fwriteln("Error: %s: No such command", g_console.decisions.prefix_buffer);
 }
 
 static inline void console_update_animation() {
@@ -364,7 +294,7 @@ static inline void console_update_animation() {
 static inline void console_handle_backspace() {
   if (IsKeyPressed(KEY_BACKSPACE)) {
     g_console.backspace.down = true;
-    buf_del_char_at(g_console.text, g_console.cursor.index);
+    console_del_char_at(&g_console, g_console.cursor.index);
     g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
   }
 
@@ -376,15 +306,16 @@ static inline void console_handle_backspace() {
 
   if (g_console.backspace.down) {
     g_console.backspace.timer += GetFrameTime();
-    if (g_console.text[0].used > 0 &&
+    int prompt_len = (int) strlen(g_console.text[0]);
+    if (prompt_len > 0 &&
         g_console.backspace.timer > g_console.backspace.timeout) {
 
-      buf_del_char_at(g_console.text, g_console.cursor.index);
+      console_del_char_at(&g_console, g_console.cursor.index);
 
       g_console.backspace.timer = 0.f;
       g_console.backspace.timeout = BACKSPACE_DELETE;
       g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
-    } else if (g_console.text[0].used == 0) {
+    } else if (prompt_len == 0) {
       g_console.backspace.down = false;
     }
   }
@@ -392,6 +323,7 @@ static inline void console_handle_backspace() {
 
 static inline void console_handle_cursor_move() {
   enum Cursor_Movement { NO_MOVE = 0, LEFT_MOVE, RIGHT_MOVE };
+  int prompt_len = (int) strlen(g_console.text[0]);
 
   if (IsKeyPressed(KEY_LEFT)) {
     g_console.cursor.move_timer = 0.f;
@@ -402,7 +334,7 @@ static inline void console_handle_cursor_move() {
     g_console.cursor.move_timer = 0.f;
     g_console.cursor.direction = RIGHT_MOVE;
     g_console.cursor.index +=
-        (g_console.cursor.index < g_console.text[0].used) ? 1 : 0;
+        (g_console.cursor.index < prompt_len) ? 1 : 0;
     g_console.cursor.timeout = CURSOR_MOVE_FIRST;
   }
 
@@ -424,7 +356,7 @@ static inline void console_handle_cursor_move() {
     g_console.cursor.move_timer += GetFrameTime();
     if (g_console.cursor.move_timer > g_console.cursor.timeout) {
       g_console.cursor.index +=
-          (g_console.cursor.index < g_console.text[0].used) ? 1 : 0;
+          (g_console.cursor.index < prompt_len) ? 1 : 0;
       g_console.cursor.move_timer = 0.f;
       g_console.cursor.timeout = CURSOR_MOVE;
     }
@@ -436,16 +368,16 @@ static inline void console_handle_cursor_move() {
 
 static inline console_handle_enter() {
   if (IsKeyPressed(KEY_ENTER)) {
-    if (!buf_equal(g_console.history.buffer, g_console.text)) {
-      buf_cpy(g_console.history.buffer, g_console.text);
-      buf_array_shift_up(g_console.history.buffer, N_LINES);
+    if (strcmp(g_console.history.buffer[0], g_console.text[0]) != 0) {
+      strcpy(g_console.history.buffer[0], g_console.text[0]);
+      console_shift_up(g_console.history.buffer, N_LINES);
       g_console.history.used =
           g_console.history.used < N_LINES ? g_console.history.used + 1 : (N_LINES - 1);
     }
 
-    buf_array_shift_up(g_console.text, N_LINES);
+    console_shift_up(g_console.text, N_LINES);
     console_scan();
-    buf_reset(g_console.text);
+    memset(g_console.text[0], '\0', LINE_SIZE);
 
     g_console.history.index = g_console.cursor.index = 0;
   }
@@ -456,13 +388,13 @@ static inline console_handle_history() {
     g_console.history.index = g_console.history.index < g_console.history.used
                                ? g_console.history.index + 1
                                : g_console.history.used;
-    buf_cpy(g_console.text, g_console.history.buffer + g_console.history.index);
-    g_console.cursor.index = g_console.text->used;
+    strcpy(g_console.text[0], g_console.history.buffer[g_console.history.index]);
+    g_console.cursor.index = (int)strlen(g_console.text[0]);
   } else if (IsKeyPressed(KEY_DOWN)) {
     g_console.history.index =
         g_console.history.index > 0 ? g_console.history.index - 1 : 0;
-    buf_cpy(g_console.text, g_console.history.buffer + g_console.history.index);
-    g_console.cursor.index = g_console.text->used;
+    strcpy(g_console.text[0], g_console.history.buffer[g_console.history.index]);
+    g_console.cursor.index = (int)strlen(g_console.text[0]);
   }
 }
 
@@ -483,7 +415,7 @@ void console_update() {
 
   int c = GetCharPressed();
   if (c != 0) {
-    buf_put_char_at(&g_console.text[0], g_console.cursor.index, c);
+    console_put_char_at(&g_console, g_console.cursor.index, c);
     g_console.cursor.index += 1;
   }
 
@@ -495,10 +427,10 @@ void console_update() {
     }
   }
 
-  buf_cpy(&g_console.show, g_console.text);
+  strncpy(g_console.show_buffer, g_console.text[0], LINE_SIZE);
 
   if (g_console.cursor.on || g_console.cursor.direction != 0) {
-    g_console.show.chs[g_console.cursor.index] = '_';
+    g_console.show_buffer[g_console.cursor.index] = '_';
   }
 
   g_console.pane.offset.y = Clamp((g_console.pane.offset.y + ((float)GetMouseWheelMove() * g_console.font_size)), 0.f, N_LINES * (g_console.font_size + 2.f));
@@ -511,7 +443,7 @@ void console_render() {
 
   float prompt_height = (g_console.window.y + g_console.window.height) -
                         (g_console.font_size + 2.f);
-  DrawTextEx(g_console.font, g_console.show.chs,
+  DrawTextEx(g_console.font, g_console.show_buffer,
              (Vector2){.x = 0, .y = prompt_height}, g_console.font_size, 1.2f,
              g_console.font_color);
 
@@ -519,7 +451,7 @@ void console_render() {
     float hn = (g_console.window.y + g_console.window.height) -
                ((g_console.font_size + 2.f) * (i + 1));
 
-    DrawTextEx(g_console.font, g_console.text[i].chs,
+    DrawTextEx(g_console.font, g_console.text[i],
                (Vector2){.x = 0, .y = hn}, g_console.font_size, 1.2f,
                g_console.font_color);
   }
@@ -569,7 +501,7 @@ void console_builtin_clear(int len, char const *c) {
   }
 
   for (int i = 0; i < N_LINES; ++i) {
-    g_console.text[i].used = 0;
+    g_console.text[i][0] = '\0';
   }
 }
 
