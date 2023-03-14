@@ -1,10 +1,10 @@
 
-#include "raylib.h"
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include "console.h"
 #include "console_args.h"
+#include "raylib.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 void c_print(int cs, char const *cc) {
   struct console_arg_iter iter = console_arg_iter_init(cc, cs);
@@ -13,18 +13,33 @@ void c_print(int cs, char const *cc) {
   for (int i = 0; console_arg_iter_next_arg(&iter, &arg) != -1; ++i) {
     TraceLog(LOG_INFO, "--> ARG %i", i);
     for (int j = 0; j < arg.size; ++j) {
-      TraceLog(LOG_INFO, "-> %i: %i %c", j, arg.start[j], (char) arg.start[j]);
+      TraceLog(LOG_INFO, "-> %i: %i %c", j, arg.start[j], (char)arg.start[j]);
     }
   }
-
 }
 
 void command_pwd(int cs, char const *cc) {
   if (cs > 0) {
-    console_writeln("'ls' does not take any arguments");
+    console_println("'pwd' does not take any arguments");
     return;
   }
-  console_writeln(GetWorkingDirectory());
+  console_println(GetWorkingDirectory());
+}
+
+void command_ls_print_file(char const *path) {
+  if (DirectoryExists(path)) {
+    FilePathList p = LoadDirectoryFiles(path);
+
+    for (unsigned i = 0; i < p.count; ++i) {
+      console_printlnf("%s", p.paths[i]);
+    }
+
+    UnloadDirectoryFiles(p);
+  } else if (FileExists(path)) {
+    console_println(path);
+  } else {
+    console_printlnf("Error: %s: no such file or directory", path);
+  }
 }
 
 void command_ls(int cs, char const *cc) {
@@ -33,44 +48,19 @@ void command_ls(int cs, char const *cc) {
 
   if (arg_count == 0) {
     char const *pwd = GetWorkingDirectory();
-
-    FilePathList p = LoadDirectoryFiles(pwd);
-
-    for (unsigned i = 0; i < p.count; ++i) {
-      console_writeln(p.paths[i]);
-    }
-
-    UnloadDirectoryFiles(p);
+    command_ls_print_file(pwd);
   } else {
-    if (arg_count == 1) {
-      FilePathList p = LoadDirectoryFiles(cc);
-
-      for (unsigned i = 0; i < p.count; ++i) {
-        console_writeln(p.paths[i]);
-      }
-
-      UnloadDirectoryFiles(p);
-      return;
-    }
-
     struct console_arg arg;
 
     for (int i = 0; console_arg_iter_next_arg(&iter, &arg) != -1; ++i) {
-      char *c = console_arg_copy_as_cstring(&arg);
-      console_fwriteln("===> '%s'", c);
-
-      FilePathList p = LoadDirectoryFiles(c);
-
-      for (unsigned i = 0; i < p.count; ++i) {
-        console_writeln(p.paths[i]);
+      char const *c = console_arg_as_str(&arg);
+      if (i > 0) {
+        console_printlnf("===> '%s'", c);
       }
-
-      UnloadDirectoryFiles(p);
-      free(c);
+      command_ls_print_file(c);
     }
   }
 }
-
 
 int main(int argc, char **argv) {
 

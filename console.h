@@ -6,7 +6,7 @@
 
 /*
  * The consoles one-time initialization routine.
- * Must be called only once, before any update or 
+ * Must be called only once, before any update or
  * render steps as been done.
  */
 void console_init();
@@ -26,27 +26,27 @@ void console_render();
 /*
  * Write a line to the console.
  */
-void console_writeln(char const *blah);
+void console_println(char const *blah);
 
 /*
  * Write a formatted line to the console.
  * Wraps around C standard library printf functionality, so
  * the same format rules apply here.
  */
-void console_fwriteln(char const *format, ...);
+void console_printlnf(char const *format, ...);
 
 /*
  * Register an function handler that gets called when
  * the given prefix is observed from the user input.
- * 
+ *
  * This is how extend the functionality of the console.
  */
-void console_register(const char *prefix, void (*handler)(int , char const*));
+void console_register(const char *prefix, void (*handler)(int, char const *));
 
 /*
  * Set the console's activation key.
  * The key code recognized is the same as used by raylib keyboard input codes.
- * 
+ *
  * The default activation key is KEY_F3.
  */
 void console_set_active_key(int key);

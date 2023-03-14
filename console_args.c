@@ -1,16 +1,17 @@
 
 #include "console_args.h"
+#include "console_config.h"
 #include "raylib.h"
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+
 
 static inline bool is_white_space(char c) {
-  return ('\n') == c || (' ') == c || ('\t') == c ||
-         ('\f') == c || ('\v') == c || ('\r') == c;
+  return ('\n') == c || (' ') == c || ('\t') == c || ('\f') == c ||
+         ('\v') == c || ('\r') == c;
 }
 
 static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
-
 
 int console_arg_iter_count_args(struct console_arg_iter const *it) {
   int arg_count = 0;
@@ -32,20 +33,15 @@ int console_arg_iter_count_args(struct console_arg_iter const *it) {
 }
 
 struct console_arg_iter console_arg_iter_init(char const *chs, int count) {
-  return (struct console_arg_iter) {
-    .next = 0,
-    .chrs = chs,
-    .chr_count = count
-  };
+  return (struct console_arg_iter){.next = 0, .chrs = chs, .chr_count = count};
 }
 
-int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg *arg) {
-  if (!arg || !iter) return -1;
+int console_arg_iter_next_arg(struct console_arg_iter *iter,
+                              struct console_arg *arg) {
+  if (!arg || !iter)
+    return -1;
 
-  enum t {
-    QUOTED,
-    UNQUOTED
-  } arg_t = UNQUOTED;
+  enum t { QUOTED, UNQUOTED } arg_t = UNQUOTED;
 
   for (; iter->next < iter->chr_count; ++iter->next) {
     char c = iter->chrs[iter->next];
@@ -106,22 +102,17 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter, struct console_arg 
   return 0;
 }
 
-char *console_arg_copy_as_cstring(struct console_arg *a) {
+char const *console_arg_as_str(struct console_arg *a) {
   if (a->size == 0) {
     return NULL;
   }
+  static char buffer[LINE_SIZE];
 
-  char *m = malloc((a->size + 1) * sizeof(char));
-  if (!m) {
+  if (!memcpy(buffer, a->start, a->size)) {
     return NULL;
   }
 
-  char * ss = memcpy(m, a->start, a->size);
-  if (!ss) {
-    return NULL;
-  }
+  buffer[a->size] = '\0';
 
-  m[a->size] = '\0';
-
-  return m;
+  return buffer;
 }

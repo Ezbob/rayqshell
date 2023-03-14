@@ -5,16 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define N_LINES 255
-#define LINE_SIZE 1024
-#define N_DECISIONS 255
-
-#define BACKSPACE_DELETE_FIRST 0.5f
-#define BACKSPACE_DELETE .03f
-
-#define CURSOR_MOVE_FIRST 0.5f
-#define CURSOR_MOVE .03f
+#include "console_config.h"
 
 static inline bool is_white_space(char c) {
   return ('\n') == c || (' ') == c || ('\t') == c || ('\f') == c ||
@@ -25,6 +16,8 @@ static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
 void console_builtin_clear(int len, char const *c);
 void console_builtin_exit(int len, char const *c);
+static void console_raylib_logging(int logLevel, const char *text,
+                                   va_list args);
 
 struct console {
   char text[N_LINES][LINE_SIZE];
@@ -80,22 +73,25 @@ struct console {
   char show_buffer[LINE_SIZE];
 } g_console;
 
-static inline void console_del_char_at(struct console *c, int index) {
-  int i = index;
+static inline void console_del_char(struct console *c) {
+  if (c->cursor.index <= 0) return;
+  int i = c->cursor.index - 1;
   for (; c->text[0][i] != '\0'; ++i) {
     c->text[0][i] = c->text[0][i + 1];
   }
   c->text[0][i + 1] = '\0';
 }
 
-static inline void console_put_char_at(struct console *c, int index, char cha) {
-  char ch = c->text[0][index];
-  for (int i = index + 1; c->text[0][i] != '\0'; ++i) {
-    char tmp = c->text[0][i];
-    c->text[0][i] = ch;
+static inline void console_put_char(struct console *c, char cha) {
+  char *prompt_line = &c->text[0];
+  char ch = prompt_line[c->cursor.index];
+  for (int i = c->cursor.index + 1; ch != '\0' && i < LINE_SIZE; ++i) {
+    char tmp = prompt_line[i];
+    prompt_line[i] = ch;
     ch = tmp;
   }
-  c->text[0][index] = cha;
+  prompt_line[c->cursor.index] = cha;
+  g_console.cursor.index += 1;
 }
 
 static inline void console_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
@@ -154,21 +150,35 @@ void console_init() {
 
   console_register("exit", console_builtin_exit);
   console_register("clear", console_builtin_clear);
+
+  //SetTraceLogCallback(console_raylib_logging);
 }
 
-void console_writeln(char const *blah) {
+static void console_raylib_logging(int logLevel, const char *text,
+                                   va_list args) {
+  if (logLevel >= LOG_WARNING) {
+    int written = vsnprintf(g_console.text[0], LINE_SIZE, text, args);
+    if (written < 0) {
+      console_println("Fatal error: failed to write to console");
+      return;
+    }
+    console_shift_up(g_console.text, N_LINES);
+  }
+}
+
+void console_println(char const *blah) {
   strcpy(g_console.text[0], blah);
 
   console_shift_up(g_console.text, N_LINES);
 }
 
-void console_fwriteln(char const *format, ...) {
+void console_printlnf(char const *format, ...) {
   va_list args;
   va_start(args, format);
 
   int written = vsnprintf(g_console.text[0], LINE_SIZE, format, args);
   if (written < 0) {
-    console_writeln("Fatal error: failed to write to console");
+    console_println("Fatal error: failed to write to console");
     return;
   }
 
@@ -227,7 +237,7 @@ void console_scan() {
   int prefix_end =
       console_parse_prefix(g_console.decisions.prefix_buffer, LINE_SIZE);
   if (prefix_end == -1) {
-    console_fwriteln("Error: No such command");
+    console_printlnf("Error: No such command");
     return;
   }
 
@@ -253,7 +263,7 @@ void console_scan() {
     }
   }
 
-  console_fwriteln("Error: %s: No such command",
+  console_printlnf("Error: %s: No such command",
                    g_console.decisions.prefix_buffer);
 }
 
@@ -295,7 +305,7 @@ static inline void console_update_animation() {
 static inline void console_handle_backspace() {
   if (IsKeyPressed(KEY_BACKSPACE)) {
     g_console.backspace.down = true;
-    console_del_char_at(&g_console, g_console.cursor.index);
+    console_del_char(&g_console);
     g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
   }
 
@@ -311,7 +321,7 @@ static inline void console_handle_backspace() {
     if (prompt_len > 0 &&
         g_console.backspace.timer > g_console.backspace.timeout) {
 
-      console_del_char_at(&g_console, g_console.cursor.index);
+      console_del_char(&g_console);
 
       g_console.backspace.timer = 0.f;
       g_console.backspace.timeout = BACKSPACE_DELETE;
@@ -417,8 +427,7 @@ void console_update() {
 
   int c = GetCharPressed();
   if (c != 0) {
-    console_put_char_at(&g_console, g_console.cursor.index, c);
-    g_console.cursor.index += 1;
+    console_put_char(&g_console, c);
   }
 
   if (g_console.cursor.direction == 0) {
@@ -492,7 +501,7 @@ Color console_get_font_color() { return g_console.font_color; }
 void console_builtin_exit(int len, char const *c) {
   int ec = 0;
   if (len > 1) {
-    console_writeln("Error: command 'exit' does only take one argument");
+    console_println("Error: command 'exit' does only take one argument");
     return;
   } else if (len > 0) {
     ec = atoi(c);
@@ -503,7 +512,7 @@ void console_builtin_exit(int len, char const *c) {
 
 void console_builtin_clear(int len, char const *c) {
   if (len > 0) {
-    console_writeln("Error: command 'clear' does not take any arguments");
+    console_println("Error: command 'clear' does not take any arguments");
     return;
   }
 
@@ -513,9 +522,9 @@ void console_builtin_clear(int len, char const *c) {
 }
 
 void console_builtin_help(int len, char const *c) {
-  console_writeln("builtin help:");
-  console_writeln("    clear               : clears the text pane of text");
-  console_writeln(
+  console_println("builtin help:");
+  console_println("    clear               : clears the text pane of text");
+  console_println(
       "    exit <exit_code>    : exits the program with exit code <exit_code>");
-  console_writeln("");
+  console_println("");
 }
