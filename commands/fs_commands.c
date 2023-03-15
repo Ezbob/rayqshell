@@ -1,17 +1,9 @@
-#include "console_fs_commands.h"
-#include "console_args.h"
-#include "console.h"
+#include "fs_commands.h"
+#include "../console_args.h"
+#include "../console.h"
 #include "raylib.h"
 
-void command_pwd(int cs, char const *cc) {
-  if (cs > 0) {
-    console_println("'pwd' does not take any arguments");
-    return;
-  }
-  console_println(GetWorkingDirectory());
-}
-
-static inline void command_ls_print_file(char const *path) {
+static inline void ls_print_file(char const *path) {
   if (DirectoryExists(path)) {
     FilePathList p = LoadDirectoryFiles(path);
 
@@ -27,13 +19,21 @@ static inline void command_ls_print_file(char const *path) {
   }
 }
 
-void command_ls(int cs, char const *cc) {
+void console_command_pwd(int cs, char const *cc) {
+  if (cs > 0) {
+    console_println("'pwd' does not take any arguments");
+    return;
+  }
+  console_println(GetWorkingDirectory());
+}
+
+void console_command_ls(int cs, char const *cc) {
   struct console_arg_iter iter = console_arg_iter_init(cc, cs);
   int arg_count = console_arg_iter_count_args(&iter);
 
   if (arg_count == 0) {
     char const *pwd = GetWorkingDirectory();
-    command_ls_print_file(pwd);
+    ls_print_file(pwd);
   } else {
     struct console_arg arg;
 
@@ -42,7 +42,7 @@ void command_ls(int cs, char const *cc) {
       if (i > 0) {
         console_printlnf("===> '%s'", c);
       }
-      command_ls_print_file(c);
+      ls_print_file(c);
     }
   }
 }

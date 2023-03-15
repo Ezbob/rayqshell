@@ -28,9 +28,17 @@ endif()
 
 add_library(rayqconsole STATIC "")
 
-target_sources(rayqconsole PRIVATE "console.c" "console_args.c" "console_fs_commands.c")
+target_sources(rayqconsole
+  PRIVATE
+    "console.c"
+    "console_args.c"
+    "commands/core_commands.c"
+    "commands/fs_commands.c"
+)
 
 target_link_libraries(rayqconsole PRIVATE raylib)
+
+target_include_directories(rayqconsole PUBLIC "commands")
 
 # ======================
 # console test

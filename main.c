@@ -1,6 +1,6 @@
 
 #include "console.h"
-#include "console_fs_commands.h"
+#include "commands/fs_commands.h"
 #include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,8 +16,8 @@ int main(int argc, char **argv) {
 
   console_set_font(f, 18);
 
-  console_register("pwd", command_pwd);
-  console_register("ls", command_ls);
+  console_register("pwd", console_command_pwd);
+  console_register("ls", console_command_ls);
 
   while (!WindowShouldClose()) {
 

@@ -14,8 +14,10 @@ static inline bool is_white_space(char c) {
 
 static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
-void console_builtin_clear(int len, char const *c);
-void console_builtin_exit(int len, char const *c);
+extern void console_command_clear(int len, char const *c);
+
+extern void console_command_exit(int len, char const *c);
+
 static void console_raylib_logging(int logLevel, const char *text,
                                    va_list args);
 
@@ -148,8 +150,8 @@ void console_init() {
       .zoom = 1.f,
   };
 
-  console_register("exit", console_builtin_exit);
-  console_register("clear", console_builtin_clear);
+  console_register("exit", console_command_exit);
+  console_register("clear", console_command_clear);
 
   //SetTraceLogCallback(console_raylib_logging);
 }
@@ -494,37 +496,8 @@ void console_set_font_color(Color c) { g_console.font_color = c; }
 
 Color console_get_font_color() { return g_console.font_color; }
 
-// -------------------------------------------------------------------------------------
-// builtins
-// -------------------------------------------------------------------------------------
-
-void console_builtin_exit(int len, char const *c) {
-  int ec = 0;
-  if (len > 1) {
-    console_println("Error: command 'exit' does only take one argument");
-    return;
-  } else if (len > 0) {
-    ec = atoi(c);
-  }
-
-  exit(ec);
-}
-
-void console_builtin_clear(int len, char const *c) {
-  if (len > 0) {
-    console_println("Error: command 'clear' does not take any arguments");
-    return;
-  }
-
+void console_clear() {
   for (int i = 0; i < N_LINES; ++i) {
     g_console.text[i][0] = '\0';
   }
-}
-
-void console_builtin_help(int len, char const *c) {
-  console_println("builtin help:");
-  console_println("    clear               : clears the text pane of text");
-  console_println(
-      "    exit <exit_code>    : exits the program with exit code <exit_code>");
-  console_println("");
 }
