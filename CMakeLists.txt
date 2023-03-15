@@ -1,6 +1,10 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.24)
 
-project(console)
+project(rayqconsole C)
+
+# ======================
+# FetchContent dependencies
+# ======================
 
 include(FetchContent)
 
@@ -18,8 +22,22 @@ if(NOT raylib_POPULATED)
   add_subdirectory(${raylib_SOURCE_DIR} ${raylib_BINARY_DIR})
 endif()
 
+# ======================
+# rayqconsole library
+# ======================
+
+add_library(rayqconsole STATIC "")
+
+target_sources(rayqconsole PRIVATE "console.c" "console_args.c" "console_fs_commands.c")
+
+target_link_libraries(rayqconsole PRIVATE raylib)
+
+# ======================
+# console test
+# ======================
+
 add_executable(console_test "")
 
-target_sources(console_test PRIVATE "main.c" "console.c" "console_args.c")
+target_sources(console_test PRIVATE "main.c")
 
-target_link_libraries(console_test PRIVATE raylib)
+target_link_libraries(console_test PRIVATE raylib rayqconsole)
