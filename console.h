@@ -26,7 +26,7 @@ void console_render();
 /*
  * Write a line to the console.
  */
-void console_println(char const *blah);
+void console_println(char const *text);
 
 /*
  * Write a formatted line to the console.
@@ -34,6 +34,11 @@ void console_println(char const *blah);
  * the same format rules apply here.
  */
 void console_printlnf(char const *format, ...);
+
+/*
+ * Clears the console text pane of text.
+ */
+void console_clear();
 
 /*
  * Register an function handler that gets called when

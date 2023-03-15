@@ -65,7 +65,11 @@ struct console {
 
   struct {
     int index;
-    int direction;
+    enum Cursor_Movement {
+      CURSOR_NO_MOVE = 0,
+      CURSOR_LEFT_MOVE,
+      CURSOR_RIGHT_MOVE
+    } direction;
     float move_timer;
     float blink_timer;
     float timeout;
@@ -335,28 +339,28 @@ static inline void console_handle_backspace() {
 }
 
 static inline void console_handle_cursor_move() {
-  enum Cursor_Movement { NO_MOVE = 0, LEFT_MOVE, RIGHT_MOVE };
+
   int prompt_len = (int)strlen(g_console.text[0]);
 
   if (IsKeyPressed(KEY_LEFT)) {
     g_console.cursor.move_timer = 0.f;
-    g_console.cursor.direction = LEFT_MOVE;
+    g_console.cursor.direction = CURSOR_LEFT_MOVE;
     g_console.cursor.index -= (g_console.cursor.index > 0) ? 1 : 0;
     g_console.cursor.timeout = CURSOR_MOVE_FIRST;
   } else if (IsKeyPressed(KEY_RIGHT)) {
     g_console.cursor.move_timer = 0.f;
-    g_console.cursor.direction = RIGHT_MOVE;
+    g_console.cursor.direction = CURSOR_RIGHT_MOVE;
     g_console.cursor.index += (g_console.cursor.index < prompt_len) ? 1 : 0;
     g_console.cursor.timeout = CURSOR_MOVE_FIRST;
   }
 
   if (IsKeyReleased(KEY_LEFT) || IsKeyReleased(KEY_RIGHT)) {
-    g_console.cursor.direction = NO_MOVE;
+    g_console.cursor.direction = CURSOR_NO_MOVE;
     g_console.cursor.move_timer = 0.f;
   }
 
   switch (g_console.cursor.direction) {
-  case LEFT_MOVE:
+  case CURSOR_LEFT_MOVE:
     g_console.cursor.move_timer += GetFrameTime();
     if (g_console.cursor.move_timer > g_console.cursor.timeout) {
       g_console.cursor.index -= (g_console.cursor.index > 0) ? 1 : 0;
@@ -364,7 +368,7 @@ static inline void console_handle_cursor_move() {
       g_console.cursor.timeout = CURSOR_MOVE;
     }
     break;
-  case RIGHT_MOVE:
+  case CURSOR_RIGHT_MOVE:
     g_console.cursor.move_timer += GetFrameTime();
     if (g_console.cursor.move_timer > g_console.cursor.timeout) {
       g_console.cursor.index += (g_console.cursor.index < prompt_len) ? 1 : 0;
@@ -432,7 +436,7 @@ void console_update() {
     console_put_char(&g_console, c);
   }
 
-  if (g_console.cursor.direction == 0) {
+  if (g_console.cursor.direction == CURSOR_NO_MOVE) {
     g_console.cursor.blink_timer += GetFrameTime();
     if (g_console.cursor.blink_timer >= 0.5f) {
       g_console.cursor.on = !g_console.cursor.on;
@@ -442,7 +446,7 @@ void console_update() {
 
   strncpy(g_console.show_buffer, g_console.text[0], LINE_SIZE);
 
-  if (g_console.cursor.on || g_console.cursor.direction != 0) {
+  if (g_console.cursor.on || g_console.cursor.direction != CURSOR_NO_MOVE) {
     g_console.show_buffer[g_console.cursor.index] = '_';
   }
 
@@ -500,4 +504,6 @@ void console_clear() {
   for (int i = 0; i < N_LINES; ++i) {
     g_console.text[i][0] = '\0';
   }
+  g_console.cursor.index = 0;
+  g_console.cursor.direction = CURSOR_NO_MOVE;
 }
