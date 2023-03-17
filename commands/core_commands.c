@@ -1,6 +1,7 @@
 
 #include "core_commands.h"
 #include "../console.h"
+#include <stdlib.h>
 
 void console_command_exit(int len, char const *c) {
   int ec = 0;

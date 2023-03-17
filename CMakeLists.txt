@@ -2,6 +2,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.24)
 
 project(rayqconsole C)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # ======================
 # FetchContent dependencies
 # ======================

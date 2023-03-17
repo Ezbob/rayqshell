@@ -36,7 +36,7 @@ struct console {
   struct {
     char prefix_buffer[LINE_SIZE];
     const char *key[N_DECISIONS];
-    void (*value[N_DECISIONS])(int, char *);
+    void (*value[N_DECISIONS])(int, char const *);
     int used;
   } decisions;
 
@@ -89,7 +89,7 @@ static inline void console_del_char(struct console *c) {
 }
 
 static inline void console_put_char(struct console *c, char cha) {
-  char *prompt_line = &c->text[0];
+  char *prompt_line = *(c->text + 0);
   char ch = prompt_line[c->cursor.index];
   for (int i = c->cursor.index + 1; ch != '\0' && i < LINE_SIZE; ++i) {
     char tmp = prompt_line[i];
@@ -103,11 +103,11 @@ static inline void console_put_char(struct console *c, char cha) {
 static inline void console_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
   char n[LINE_SIZE], b[LINE_SIZE];
 
-  strcpy(n, *bufs);
+  memcpy(n, *bufs, sizeof(n));
   for (int i = 1; i < (nbufs - 1); ++i) {
-    strcpy(b, bufs[i]);
-    strcpy(bufs[i], n);
-    strcpy(n, b);
+    memcpy(b, bufs[i], sizeof(b));
+    memcpy(bufs[i], n, sizeof(bufs[i]));
+    memcpy(n, b, sizeof(n));
   }
 }
 
@@ -173,8 +173,7 @@ static void console_raylib_logging(int logLevel, const char *text,
 }
 
 void console_println(char const *blah) {
-  strcpy(g_console.text[0], blah);
-
+  memcpy(g_console.text[0], blah, sizeof(g_console.text[0]));
   console_shift_up(g_console.text, N_LINES);
 }
 
@@ -224,7 +223,7 @@ int console_parse_prefix(char *buffer, int buffer_length) {
   prefix_len = (prefix_end - prefix_start);
 
   memset(buffer, '\0', LINE_SIZE);
-  if (strncpy(buffer, prompt_line + prefix_start, prefix_len) == NULL) {
+  if (memcpy(buffer, prompt_line + prefix_start, prefix_len) == NULL) {
     return -1;
   }
   buffer[buffer_length - 1] = '\0';
@@ -381,10 +380,10 @@ static inline void console_handle_cursor_move() {
   }
 }
 
-static inline console_handle_enter() {
+static inline void console_handle_enter() {
   if (IsKeyPressed(KEY_ENTER)) {
     if (strcmp(g_console.history.buffer[0], g_console.text[0]) != 0) {
-      strcpy(g_console.history.buffer[0], g_console.text[0]);
+      memcpy(g_console.history.buffer[0], g_console.text[0], sizeof(g_console.history.buffer[0]));
       console_shift_up(g_console.history.buffer, N_LINES);
       g_console.history.used = g_console.history.used < N_LINES
                                    ? g_console.history.used + 1
@@ -399,19 +398,19 @@ static inline console_handle_enter() {
   }
 }
 
-static inline console_handle_history() {
+static inline void console_handle_history() {
   if (IsKeyPressed(KEY_UP)) {
     g_console.history.index = g_console.history.index < g_console.history.used
                                   ? g_console.history.index + 1
                                   : g_console.history.used;
-    strcpy(g_console.text[0],
-           g_console.history.buffer[g_console.history.index]);
+    memcpy(g_console.text[0],
+           g_console.history.buffer[g_console.history.index], sizeof(g_console.text[0]));
     g_console.cursor.index = (int)strlen(g_console.text[0]);
   } else if (IsKeyPressed(KEY_DOWN)) {
     g_console.history.index =
         g_console.history.index > 0 ? g_console.history.index - 1 : 0;
-    strcpy(g_console.text[0],
-           g_console.history.buffer[g_console.history.index]);
+    memcpy(g_console.text[0],
+           g_console.history.buffer[g_console.history.index], sizeof(g_console.text[0]));
     g_console.cursor.index = (int)strlen(g_console.text[0]);
   }
 }
@@ -444,7 +443,7 @@ void console_update() {
     }
   }
 
-  strncpy(g_console.show_buffer, g_console.text[0], LINE_SIZE);
+  memcpy(g_console.show_buffer, g_console.text[0], LINE_SIZE);
 
   if (g_console.cursor.on || g_console.cursor.direction != CURSOR_NO_MOVE) {
     g_console.show_buffer[g_console.cursor.index] = '_';
