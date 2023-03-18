@@ -2,50 +2,23 @@
 #include "console_args.h"
 #include "console_config.h"
 #include "raylib.h"
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
-
-static inline bool is_white_space(char c) {
-  return ('\n') == c || (' ') == c || ('\t') == c || ('\f') == c ||
-         ('\v') == c || ('\r') == c;
-}
-
 static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
-int console_arg_iter_count_args(struct console_arg_iter const *it) {
-  int arg_count = 0;
-
-  for (int i = 0, quote_level = 0; i < it->chr_count; ++i) {
-    int c = it->chrs[i];
-    if (is_white_space(c) && quote_level == 0) {
-      arg_count++;
-    } else if (is_quote(c)) {
-      quote_level = (quote_level > 0) ? (quote_level - 1) : (quote_level + 1);
-    }
-
-    if (i == (it->chr_count - 1) && quote_level == 0) {
-      arg_count++;
-    }
+static inline int parse_fields(struct console_arg_iter *iter, char **output, int max_size) {
+  if (!iter || !output) {
+    return -1;
   }
 
-  return arg_count;
-}
-
-struct console_arg_iter console_arg_iter_init(char const *chs, int count) {
-  return (struct console_arg_iter){.next = 0, .chrs = chs, .chr_count = count};
-}
-
-int console_arg_iter_next_arg(struct console_arg_iter *iter,
-                              struct console_arg *arg) {
-  if (!arg || !iter)
-    return -1;
-
   enum t { QUOTED, UNQUOTED } arg_t = UNQUOTED;
+  *output = NULL;
 
   for (; iter->next < iter->chr_count; ++iter->next) {
     char c = iter->chrs[iter->next];
-    if (!is_white_space(c)) {
+    if (!isspace((unsigned int)c)) {
       break;
     }
   }
@@ -80,7 +53,7 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter,
 
     for (; iter->next < iter->chr_count; ++iter->next) {
       char c = iter->chrs[iter->next];
-      if (is_white_space(c)) {
+      if (isspace((unsigned int)c)) {
         break; // position interator at next whitespace or at end of string
       }
     }
@@ -89,7 +62,7 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter,
 
     for (; iter->next < iter->chr_count; ++iter->next, size++) {
       char c = iter->chrs[iter->next];
-      if (is_white_space(c)) {
+      if (isspace((unsigned int)c)) {
         break;
       } else if (is_quote(c)) {
         return -1;
@@ -97,22 +70,47 @@ int console_arg_iter_next_arg(struct console_arg_iter *iter,
     }
   }
 
-  arg->start = start;
-  arg->size = size;
-  return 0;
+  if (size >= max_size) {
+    return -1;
+  }
+
+  *output = ((char *)start);
+  return size;
 }
 
-char const *console_arg_as_str(struct console_arg *a) {
-  if (a->size == 0) {
-    return NULL;
+int console_arg_iter_count_args(struct console_arg_iter const *it) {
+  int arg_count = 0;
+
+  for (int i = 0, quote_level = 0; i < it->chr_count; ++i) {
+    int c = it->chrs[i];
+    if (isspace((unsigned int)c) && quote_level == 0) {
+      arg_count++;
+    } else if (is_quote(c)) {
+      quote_level = (quote_level > 0) ? (quote_level - 1) : (quote_level + 1);
+    }
+
+    if (i == (it->chr_count - 1) && quote_level == 0) {
+      arg_count++;
+    }
   }
+
+  return arg_count;
+}
+
+struct console_arg_iter console_arg_iter_init(char const *chs, int count) {
+  return (struct console_arg_iter){.next = 0, .chrs = chs, .chr_count = count};
+}
+
+const char *console_arg_iter_next(struct console_arg_iter *iter) {
   static char buffer[LINE_SIZE];
-
-  if (!memcpy(buffer, a->start, a->size)) {
+  char *start = NULL;
+  int size = parse_fields(iter, &start, LINE_SIZE);
+  if (size < 0) {
     return NULL;
   }
-
-  buffer[a->size] = '\0';
-
+  if (!memcpy(buffer, start, size)) {
+    return NULL;
+  }
+  buffer[size] = '\0';
   return buffer;
 }

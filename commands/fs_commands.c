@@ -35,14 +35,33 @@ void console_command_ls(int cs, char const *cc) {
     char const *pwd = GetWorkingDirectory();
     ls_print_file(pwd);
   } else {
-    struct console_arg arg;
-
-    for (int i = 0; console_arg_iter_next_arg(&iter, &arg) != -1; ++i) {
-      char const *c = console_arg_as_str(&arg);
+    const char *c = 0;
+    int i = 0;
+    while ((c = console_arg_iter_next(&iter))) {
       if (i > 0) {
         console_printlnf("===> '%s'", c);
       }
       ls_print_file(c);
+      i++;
+    }
+  }
+}
+
+void console_command_cd(int cs, char const *cc) {
+  struct console_arg_iter iter = console_arg_iter_init(cc, cs);
+  int arg_count = console_arg_iter_count_args(&iter);
+
+  if (arg_count == 0) {
+    return;
+  } else if (arg_count > 1) {
+    console_println("Error: cd: too many arguments parsed to cd");
+    return;
+  } else if (arg_count == 1) {
+    const char *c = console_arg_iter_next(&iter);
+    if (DirectoryExists(c)) {
+      ChangeDirectory(c);
+    } else {
+      console_printlnf("Error: %s: No such directory", c);
     }
   }
 }

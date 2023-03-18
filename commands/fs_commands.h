@@ -7,4 +7,6 @@ void console_command_pwd(int cs, char const *cc);
 
 void console_command_ls(int cs, char const *cc);
 
+void console_command_cd(int cs, char const *cc);
+
 #endif

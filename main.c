@@ -18,6 +18,7 @@ int main(int argc, char **argv) {
 
   console_register("pwd", console_command_pwd);
   console_register("ls", console_command_ls);
+  console_register("cd", console_command_cd);
 
   while (!WindowShouldClose()) {
 
