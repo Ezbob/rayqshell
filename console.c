@@ -150,20 +150,6 @@ void console_init() {
 
   console_register("exit", console_command_exit);
   console_register("clear", console_command_clear);
-
-  //SetTraceLogCallback(console_raylib_logging);
-}
-
-static void console_raylib_logging(int logLevel, const char *text,
-                                   va_list args) {
-  if (logLevel >= LOG_WARNING) {
-    int written = vsnprintf(g_console.text[0], LINE_SIZE, text, args);
-    if (written < 0) {
-      console_println("Fatal error: failed to write to console");
-      return;
-    }
-    console_shift_up(g_console.text, N_LINES);
-  }
 }
 
 void console_println(char const *blah) {
