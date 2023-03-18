@@ -5,5 +5,5 @@
 [x]  implement basic scrolling
   
 # basic file system navigation
-[ ] "cd" implementation
-[ ] finish "ls" implementation
+[x] "cd" implementation
+[x] finish "ls" implementation
