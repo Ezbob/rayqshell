@@ -1,4 +1,5 @@
 #include "console.h"
+#include <ctype.h>
 #include <raylib.h>
 #include <raymath.h>
 #include <stdarg.h>
@@ -6,13 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "console_config.h"
-
-static inline bool is_white_space(char c) {
-  return ('\n') == c || (' ') == c || ('\t') == c || ('\f') == c ||
-         ('\v') == c || ('\r') == c;
-}
-
-static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
 extern void console_command_clear(int len, char const *c);
 
@@ -209,13 +203,13 @@ int console_parse_prefix(char *buffer, int buffer_length) {
   int prefix_end = 0, prefix_start = 0, prefix_len = 0;
 
   for (; prefix_start < len; ++prefix_start) {
-    if (!is_white_space(prompt_line[prefix_start])) {
+    if (!isspace((unsigned int) prompt_line[prefix_start])) {
       break;
     }
   }
 
   for (prefix_end = prefix_start; prefix_end < len; ++prefix_end) {
-    if (is_white_space(prompt_line[prefix_end])) {
+    if (isspace((unsigned int) prompt_line[prefix_end])) {
       break;
     }
   }
@@ -258,7 +252,7 @@ void console_scan() {
 
     if (strcmp(g_console.decisions.prefix_buffer, key) == 0) {
       int start_of_args = prefix_end;
-      for (; start_of_args < len && is_white_space(prompt_line[start_of_args]);
+      for (; start_of_args < len && isspace((unsigned int) prompt_line[start_of_args]);
            start_of_args++)
         ;
 
