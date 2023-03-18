@@ -1,6 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.24)
 
-project(rayqconsole C)
+project(rayqshell C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -25,12 +25,12 @@ if(NOT raylib_POPULATED)
 endif()
 
 # ======================
-# rayqconsole library
+# rayqshell library
 # ======================
 
-add_library(rayqconsole STATIC "")
+add_library(rayqshell STATIC "")
 
-target_sources(rayqconsole
+target_sources(rayqshell
   PRIVATE
     "console.c"
     "console_args.c"
@@ -38,16 +38,16 @@ target_sources(rayqconsole
     "commands/fs_commands.c"
 )
 
-target_link_libraries(rayqconsole PRIVATE raylib)
+target_link_libraries(rayqshell PRIVATE raylib)
 
-target_include_directories(rayqconsole PUBLIC "commands")
+target_include_directories(rayqshell PUBLIC "commands")
 
 # ======================
 # console test
 # ======================
 
-add_executable(console_test "")
+add_executable(console_test EXCLUDE_FROM_ALL "")
 
 target_sources(console_test PRIVATE "main.c")
 
-target_link_libraries(console_test PRIVATE raylib rayqconsole)
+target_link_libraries(console_test PRIVATE raylib rayqshell)
