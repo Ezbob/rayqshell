@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+static inline bool is_white_space(char c) { return (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f'); }
 static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
 static inline int parse_fields(struct rqshell_arg_iter *iter, char **output, int max_size) {
@@ -18,7 +19,7 @@ static inline int parse_fields(struct rqshell_arg_iter *iter, char **output, int
 
   for (; iter->next < iter->chr_count; ++iter->next) {
     char c = iter->chrs[iter->next];
-    if (!isspace((unsigned int)c)) {
+    if (!is_white_space(c)) {
       break;
     }
   }
@@ -53,7 +54,7 @@ static inline int parse_fields(struct rqshell_arg_iter *iter, char **output, int
 
     for (; iter->next < iter->chr_count; ++iter->next) {
       char c = iter->chrs[iter->next];
-      if (isspace((unsigned int)c)) {
+      if (is_white_space(c)) {
         break; // position interator at next whitespace or at end of string
       }
     }
@@ -62,7 +63,7 @@ static inline int parse_fields(struct rqshell_arg_iter *iter, char **output, int
 
     for (; iter->next < iter->chr_count; ++iter->next, size++) {
       char c = iter->chrs[iter->next];
-      if (isspace((unsigned int)c)) {
+      if (is_white_space(c)) {
         break;
       } else if (is_quote(c)) {
         return -1;
@@ -83,7 +84,7 @@ int rqshell_arg_iter_count_args(struct rqshell_arg_iter const *it) {
 
   for (int i = 0, quote_level = 0; i < it->chr_count; ++i) {
     int c = it->chrs[i];
-    if (isspace((unsigned int)c) && quote_level == 0) {
+    if (is_white_space(c) && quote_level == 0) {
       arg_count++;
     } else if (is_quote(c)) {
       quote_level = (quote_level > 0) ? (quote_level - 1) : (quote_level + 1);

@@ -2,8 +2,12 @@
 #include "../rqshell_args.h"
 #include "../rqshell.h"
 #include "raylib.h"
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include "config.h"
 
-static inline void ls_print_file(char const *path) {
+static inline bool ls_print_file(char const *path) {
   if (DirectoryExists(path)) {
     FilePathList p = LoadDirectoryFiles(path);
 
@@ -12,10 +16,13 @@ static inline void ls_print_file(char const *path) {
     }
 
     UnloadDirectoryFiles(p);
+    return true;
   } else if (FileExists(path)) {
     rqshell_println(path);
+    return true;
   } else {
     rqshell_printlnf("Error: %s: no such file or directory", path);
+    return false;
   }
 }
 
@@ -41,13 +48,20 @@ void rqshell_command_ls(int cs, char const *cc) {
       if (i > 0) {
         rqshell_printlnf("===> '%s'", c);
       }
-      ls_print_file(c);
+      if (!ls_print_file(c)) {
+        return;
+      }
       i++;
     }
   }
 }
 
 void rqshell_command_cd(int cs, char const *cc) {
+  static const char *home = NULL;
+  if (!home) {
+    home = _strdup(GetWorkingDirectory());
+  }
+
   struct rqshell_arg_iter iter = rqshell_arg_iter_init(cc, cs);
   int arg_count = rqshell_arg_iter_count_args(&iter);
 
@@ -58,7 +72,11 @@ void rqshell_command_cd(int cs, char const *cc) {
     return;
   } else if (arg_count == 1) {
     const char *c = rqshell_arg_iter_next(&iter);
-    if (DirectoryExists(c)) {
+    if (strcmp(c, "~") == 0) {
+      rqshell_printlnf("%s", home);
+      ChangeDirectory(home);
+    } else if (DirectoryExists(c)) {
+      rqshell_printlnf("%s", c);
       ChangeDirectory(c);
     } else {
       rqshell_printlnf("Error: %s: No such directory", c);

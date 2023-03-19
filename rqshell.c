@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static inline bool is_white_space(char c) { return (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f'); }
+
 extern void rqshell_command_clear(int len, char const *c);
 
 extern void rqshell_command_exit(int len, char const *c);
@@ -191,13 +193,13 @@ int rqshell_parse_prefix(char *buffer, int buffer_length) {
   int prefix_end = 0, prefix_start = 0, prefix_len = 0;
 
   for (; prefix_start < len; ++prefix_start) {
-    if (!isspace((unsigned int)prompt_line[prefix_start])) {
+    if (!is_white_space(prompt_line[prefix_start])) {
       break;
     }
   }
 
   for (prefix_end = prefix_start; prefix_end < len; ++prefix_end) {
-    if (isspace((unsigned int)prompt_line[prefix_end])) {
+    if (is_white_space(prompt_line[prefix_end])) {
       break;
     }
   }
@@ -241,7 +243,7 @@ void rqshell_scan() {
     if (strcmp(g_console.decisions.prefix_buffer, key) == 0) {
       int start_of_args = prefix_end;
       for (; start_of_args < len &&
-             isspace((unsigned int)prompt_line[start_of_args]);
+             is_white_space(prompt_line[start_of_args]);
            start_of_args++)
         ;
 
@@ -416,7 +418,11 @@ void rqshell_update() {
 
   int c = GetCharPressed();
   if (c != 0) {
-    rqshell_put_char(&g_console, c);
+    if (32 <= c && c < 126) { // ASCII printable support
+      rqshell_put_char(&g_console, c);
+    } else {
+      rqshell_put_char(&g_console, '?');
+    }
   }
 
   if (g_console.cursor.direction == CURSOR_NO_MOVE) {
