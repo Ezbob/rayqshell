@@ -1,6 +1,5 @@
 #include "rqshell.h"
 #include "rqshell_config.h"
-#include <ctype.h>
 #include <raylib.h>
 #include <raymath.h>
 #include <stdarg.h>
