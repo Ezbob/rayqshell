@@ -3,7 +3,18 @@
   [x] deletes at cursor
 
 [x]  implement basic scrolling
-  
+
 # basic file system navigation
 [x] "cd" implementation
 [x] finish "ls" implementation
+
+# copy pasta support
+[ ] ctrl+v paste option
+[ ] ctrl+c copy option
+[ ] text marking (probably holding shift)
+  [ ] mouse marking box support
+  [ ] copy only marked area
+
+# extra fluff
+[ ] "home", "end" key cursor seeking
+[ ] remove everything left of cursor shortcut (usually ctrl+k)
