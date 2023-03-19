@@ -1,32 +1,33 @@
 
-#include "console.h"
 #include "commands/fs_commands.h"
+#include "rqshell.h"
 #include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+
 int main(int argc, char **argv) {
 
   InitWindow(800, 600, "HELLO");
 
-  console_init();
+  rqshell_init();
 
   Font f = LoadFontEx("resources/DotGothic16-Regular.ttf", 18, NULL, 1024);
 
-  console_set_font(f, 18);
+  rqshell_set_font(f, 18);
 
-  console_register("pwd", console_command_pwd);
-  console_register("ls", console_command_ls);
-  console_register("cd", console_command_cd);
+  rqshell_register("pwd", rqshell_command_pwd);
+  rqshell_register("ls", rqshell_command_ls);
+  rqshell_register("cd", rqshell_command_cd);
 
   while (!WindowShouldClose()) {
 
-    console_update();
+    rqshell_update();
 
     BeginDrawing();
     ClearBackground(WHITE);
-    console_render();
+    rqshell_render();
     EndDrawing();
   }
 

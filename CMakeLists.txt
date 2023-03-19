@@ -32,8 +32,8 @@ add_library(rayqshell STATIC "")
 
 target_sources(rayqshell
   PRIVATE
-    "console.c"
-    "console_args.c"
+    "rqshell.c"
+    "rqshell_args.c"
     "commands/core_commands.c"
     "commands/fs_commands.c"
 )

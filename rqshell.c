@@ -1,4 +1,5 @@
-#include "console.h"
+#include "rqshell.h"
+#include "rqshell_config.h"
 #include <ctype.h>
 #include <raylib.h>
 #include <raymath.h>
@@ -6,13 +7,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "console_config.h"
 
-extern void console_command_clear(int len, char const *c);
+extern void rqshell_command_clear(int len, char const *c);
 
-extern void console_command_exit(int len, char const *c);
+extern void rqshell_command_exit(int len, char const *c);
 
-static void console_raylib_logging(int logLevel, const char *text,
+static void rqshell_raylib_logging(int logLevel, const char *text,
                                    va_list args);
 
 struct console {
@@ -73,8 +73,10 @@ struct console {
   char show_buffer[LINE_SIZE];
 } g_console;
 
-static inline void console_del_char(struct console *c) {
-  if (c->cursor.index <= 0) return;
+static inline void rqshell_del_char(struct console *c) {
+  if (c->cursor.index <= 0) {
+    return;
+  }
   int i = c->cursor.index - 1;
   for (; c->text[0][i] != '\0'; ++i) {
     c->text[0][i] = c->text[0][i + 1];
@@ -82,7 +84,7 @@ static inline void console_del_char(struct console *c) {
   c->text[0][i + 1] = '\0';
 }
 
-static inline void console_put_char(struct console *c, char cha) {
+static inline void rqshell_put_char(struct console *c, char cha) {
   char *prompt_line = *(c->text + 0);
   char ch = prompt_line[c->cursor.index];
   for (int i = c->cursor.index + 1; ch != '\0' && i < LINE_SIZE; ++i) {
@@ -94,7 +96,7 @@ static inline void console_put_char(struct console *c, char cha) {
   g_console.cursor.index += 1;
 }
 
-static inline void console_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
+static inline void rqshell_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
   char n[LINE_SIZE], b[LINE_SIZE];
 
   memcpy(n, *bufs, sizeof(n));
@@ -105,7 +107,7 @@ static inline void console_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
   }
 }
 
-void console_init() {
+void rqshell_init() {
   for (int i = 0; i < N_LINES; ++i) {
     memset(g_console.text + i, '\0', LINE_SIZE);
   }
@@ -148,38 +150,38 @@ void console_init() {
       .zoom = 1.f,
   };
 
-  console_register("exit", console_command_exit);
-  console_register("clear", console_command_clear);
+  rqshell_register("exit", rqshell_command_exit);
+  rqshell_register("clear", rqshell_command_clear);
 }
 
-void console_println(char const *blah) {
+void rqshell_println(char const *blah) {
   memcpy(g_console.text[0], blah, sizeof(g_console.text[0]));
-  console_shift_up(g_console.text, N_LINES);
+  rqshell_shift_up(g_console.text, N_LINES);
 }
 
-void console_printlnf(char const *format, ...) {
+void rqshell_printlnf(char const *format, ...) {
   va_list args;
   va_start(args, format);
 
   int written = vsnprintf(g_console.text[0], LINE_SIZE, format, args);
   if (written < 0) {
-    console_println("Fatal error: failed to write to console");
+    rqshell_println("Fatal error: failed to write to console");
     return;
   }
 
   va_end(args);
 
-  console_shift_up(g_console.text, N_LINES);
+  rqshell_shift_up(g_console.text, N_LINES);
 }
 
-void console_register(const char *name, void (*f)(int, char const *)) {
+void rqshell_register(const char *name, void (*f)(int, char const *)) {
   int j = g_console.decisions.used;
   g_console.decisions.key[j] = name;
   g_console.decisions.value[j] = f;
   g_console.decisions.used++;
 }
 
-int console_parse_prefix(char *buffer, int buffer_length) {
+int rqshell_parse_prefix(char *buffer, int buffer_length) {
   char *prompt_line = g_console.text[0];
   int len = (int)strlen(prompt_line);
   if (len == 0) {
@@ -189,13 +191,13 @@ int console_parse_prefix(char *buffer, int buffer_length) {
   int prefix_end = 0, prefix_start = 0, prefix_len = 0;
 
   for (; prefix_start < len; ++prefix_start) {
-    if (!isspace((unsigned int) prompt_line[prefix_start])) {
+    if (!isspace((unsigned int)prompt_line[prefix_start])) {
       break;
     }
   }
 
   for (prefix_end = prefix_start; prefix_end < len; ++prefix_end) {
-    if (isspace((unsigned int) prompt_line[prefix_end])) {
+    if (isspace((unsigned int)prompt_line[prefix_end])) {
       break;
     }
   }
@@ -212,7 +214,7 @@ int console_parse_prefix(char *buffer, int buffer_length) {
 }
 
 // scan command line and find out which command to run
-void console_scan() {
+void rqshell_scan() {
   char *prompt_line = g_console.history.buffer[0];
   int len = (int)strlen(prompt_line);
   if (len == 0) {
@@ -220,9 +222,9 @@ void console_scan() {
   }
 
   int prefix_end =
-      console_parse_prefix(g_console.decisions.prefix_buffer, LINE_SIZE);
+      rqshell_parse_prefix(g_console.decisions.prefix_buffer, LINE_SIZE);
   if (prefix_end == -1) {
-    console_printlnf("Error: No such command");
+    rqshell_printlnf("Error: No such command");
     return;
   }
 
@@ -238,7 +240,8 @@ void console_scan() {
 
     if (strcmp(g_console.decisions.prefix_buffer, key) == 0) {
       int start_of_args = prefix_end;
-      for (; start_of_args < len && isspace((unsigned int) prompt_line[start_of_args]);
+      for (; start_of_args < len &&
+             isspace((unsigned int)prompt_line[start_of_args]);
            start_of_args++)
         ;
 
@@ -248,11 +251,11 @@ void console_scan() {
     }
   }
 
-  console_printlnf("Error: %s: No such command",
+  rqshell_printlnf("Error: %s: No such command",
                    g_console.decisions.prefix_buffer);
 }
 
-static inline void console_update_animation() {
+static inline void rqshell_update_animation() {
   if (IsKeyPressed(g_console.activation_key)) {
     if (g_console.opening_animation.state == CONSOLE_CLOSED) {
       g_console.opening_animation.state = CONSOLE_OPENING;
@@ -287,10 +290,10 @@ static inline void console_update_animation() {
   }
 }
 
-static inline void console_handle_backspace() {
+static inline void rqshell_handle_backspace() {
   if (IsKeyPressed(KEY_BACKSPACE)) {
     g_console.backspace.down = true;
-    console_del_char(&g_console);
+    rqshell_del_char(&g_console);
     g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
   }
 
@@ -306,7 +309,7 @@ static inline void console_handle_backspace() {
     if (prompt_len > 0 &&
         g_console.backspace.timer > g_console.backspace.timeout) {
 
-      console_del_char(&g_console);
+      rqshell_del_char(&g_console);
 
       g_console.backspace.timer = 0.f;
       g_console.backspace.timeout = BACKSPACE_DELETE;
@@ -317,7 +320,7 @@ static inline void console_handle_backspace() {
   }
 }
 
-static inline void console_handle_cursor_move() {
+static inline void rqshell_handle_cursor_move() {
 
   int prompt_len = (int)strlen(g_console.text[0]);
 
@@ -360,59 +363,60 @@ static inline void console_handle_cursor_move() {
   }
 }
 
-static inline void console_handle_enter() {
+static inline void rqshell_handle_enter() {
   if (IsKeyPressed(KEY_ENTER)) {
     if (strcmp(g_console.history.buffer[0], g_console.text[0]) != 0) {
-      memcpy(g_console.history.buffer[0], g_console.text[0], sizeof(g_console.history.buffer[0]));
-      console_shift_up(g_console.history.buffer, N_LINES);
+      memcpy(g_console.history.buffer[0], g_console.text[0],
+             sizeof(g_console.history.buffer[0]));
+      rqshell_shift_up(g_console.history.buffer, N_LINES);
       g_console.history.used = g_console.history.used < N_LINES
                                    ? g_console.history.used + 1
                                    : (N_LINES - 1);
     }
 
-    console_shift_up(g_console.text, N_LINES);
-    console_scan();
+    rqshell_shift_up(g_console.text, N_LINES);
+    rqshell_scan();
     memset(g_console.text[0], '\0', LINE_SIZE);
 
     g_console.history.index = g_console.cursor.index = 0;
   }
 }
 
-static inline void console_handle_history() {
+static inline void rqshell_handle_history() {
   if (IsKeyPressed(KEY_UP)) {
     g_console.history.index = g_console.history.index < g_console.history.used
                                   ? g_console.history.index + 1
                                   : g_console.history.used;
-    memcpy(g_console.text[0],
-           g_console.history.buffer[g_console.history.index], sizeof(g_console.text[0]));
+    memcpy(g_console.text[0], g_console.history.buffer[g_console.history.index],
+           sizeof(g_console.text[0]));
     g_console.cursor.index = (int)strlen(g_console.text[0]);
   } else if (IsKeyPressed(KEY_DOWN)) {
     g_console.history.index =
         g_console.history.index > 0 ? g_console.history.index - 1 : 0;
-    memcpy(g_console.text[0],
-           g_console.history.buffer[g_console.history.index], sizeof(g_console.text[0]));
+    memcpy(g_console.text[0], g_console.history.buffer[g_console.history.index],
+           sizeof(g_console.text[0]));
     g_console.cursor.index = (int)strlen(g_console.text[0]);
   }
 }
 
-void console_update() {
-  console_update_animation();
+void rqshell_update() {
+  rqshell_update_animation();
 
   if (g_console.opening_animation.state != CONSOLE_OPENED) {
     return;
   }
 
-  console_handle_history();
+  rqshell_handle_history();
 
-  console_handle_cursor_move();
+  rqshell_handle_cursor_move();
 
-  console_handle_enter();
+  rqshell_handle_enter();
 
-  console_handle_backspace();
+  rqshell_handle_backspace();
 
   int c = GetCharPressed();
   if (c != 0) {
-    console_put_char(&g_console, c);
+    rqshell_put_char(&g_console, c);
   }
 
   if (g_console.cursor.direction == CURSOR_NO_MOVE) {
@@ -435,7 +439,7 @@ void console_update() {
             0.f, N_LINES * (g_console.font_size + 2.f));
 }
 
-void console_render() {
+void rqshell_render() {
   DrawRectangleRec(g_console.window, g_console.background_color);
   BeginScissorMode((int)g_console.window.x, (int)g_console.window.y,
                    (int)g_console.window.width, (int)g_console.window.height);
@@ -458,28 +462,28 @@ void console_render() {
   EndScissorMode();
 }
 
-void console_set_active_key(int key) { g_console.activation_key = key; }
+void rqshell_set_active_key(int key) { g_console.activation_key = key; }
 
-void console_set_font(Font f, float size) {
+void rqshell_set_font(Font f, float size) {
   g_console.font = f;
   g_console.font_size = size;
 }
 
-bool console_is_active() {
+bool rqshell_is_active() {
   return g_console.opening_animation.state == CONSOLE_OPENED;
 }
 
-void console_set_background_color(Color c) { g_console.background_color = c; }
+void rqshell_set_background_color(Color c) { g_console.background_color = c; }
 
-Color console_get_background_color() { return g_console.background_color; }
+Color rqshell_get_background_color() { return g_console.background_color; }
 
-void console_set_font_size(float font_size) { g_console.font_size = font_size; }
+void rqshell_set_font_size(float font_size) { g_console.font_size = font_size; }
 
-void console_set_font_color(Color c) { g_console.font_color = c; }
+void rqshell_set_font_color(Color c) { g_console.font_color = c; }
 
-Color console_get_font_color() { return g_console.font_color; }
+Color rqshell_get_font_color() { return g_console.font_color; }
 
-void console_clear() {
+void rqshell_clear() {
   for (int i = 0; i < N_LINES; ++i) {
     g_console.text[i][0] = '\0';
   }

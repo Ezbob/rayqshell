@@ -1,6 +1,6 @@
 
-#include "console_args.h"
-#include "console_config.h"
+#include "rqshell_args.h"
+#include "rqshell_config.h"
 #include "raylib.h"
 #include <ctype.h>
 #include <stdlib.h>
@@ -8,7 +8,7 @@
 
 static inline bool is_quote(char c) { return (c == '\"' || c == '\''); }
 
-static inline int parse_fields(struct console_arg_iter *iter, char **output, int max_size) {
+static inline int parse_fields(struct rqshell_arg_iter *iter, char **output, int max_size) {
   if (!iter || !output) {
     return -1;
   }
@@ -78,7 +78,7 @@ static inline int parse_fields(struct console_arg_iter *iter, char **output, int
   return size;
 }
 
-int console_arg_iter_count_args(struct console_arg_iter const *it) {
+int rqshell_arg_iter_count_args(struct rqshell_arg_iter const *it) {
   int arg_count = 0;
 
   for (int i = 0, quote_level = 0; i < it->chr_count; ++i) {
@@ -97,11 +97,11 @@ int console_arg_iter_count_args(struct console_arg_iter const *it) {
   return arg_count;
 }
 
-struct console_arg_iter console_arg_iter_init(char const *chs, int count) {
-  return (struct console_arg_iter){.next = 0, .chrs = chs, .chr_count = count};
+struct rqshell_arg_iter rqshell_arg_iter_init(char const *chs, int count) {
+  return (struct rqshell_arg_iter){.next = 0, .chrs = chs, .chr_count = count};
 }
 
-const char *console_arg_iter_next(struct console_arg_iter *iter) {
+const char *rqshell_arg_iter_next(struct rqshell_arg_iter *iter) {
   static char buffer[LINE_SIZE];
   char *start = NULL;
   int size = parse_fields(iter, &start, LINE_SIZE);

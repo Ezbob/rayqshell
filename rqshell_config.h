@@ -1,6 +1,6 @@
 
-#ifndef _HEADER_FILE_console_config_20230314202817_
-#define _HEADER_FILE_console_config_20230314202817_
+#ifndef _HEADER_FILE_rqshell_config_20230314202817_
+#define _HEADER_FILE_rqshell_config_20230314202817_
 
 #define N_LINES (255)
 #define LINE_SIZE (1024)
