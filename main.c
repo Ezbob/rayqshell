@@ -22,12 +22,13 @@ int main(int argc, char **argv) {
   rqshell_register("cd", rqshell_command_cd);
 
   while (!WindowShouldClose()) {
-
     rqshell_update();
 
     BeginDrawing();
     ClearBackground(WHITE);
+
     rqshell_render();
+
     EndDrawing();
   }
 

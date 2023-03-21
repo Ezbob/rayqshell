@@ -74,27 +74,60 @@ struct console {
   char show_buffer[LINE_SIZE];
 } g_console;
 
+
+// get byte offset into text counting "nCodepoints"-number of codepoints
+static inline int CodepointGetByteOffset(const char *text, int nCodepoints) {
+  int byteOffset = 0;
+  if (nCodepoints * 4 >= LINE_SIZE) {
+    return -1;
+  }
+
+  for (int codepointCount = 0; byteOffset < LINE_SIZE && codepointCount < nCodepoints; codepointCount++)
+  {
+    int codepointSize = 0;
+    GetCodepointNext(text + byteOffset, &codepointSize);
+    byteOffset += codepointSize;
+  }
+  return byteOffset;
+}
+
 static inline void rqshell_del_char(struct console *c) {
   if (c->cursor.index <= 0) {
     return;
   }
-  int i = c->cursor.index - 1;
-  for (; c->text[0][i] != '\0'; ++i) {
-    c->text[0][i] = c->text[0][i + 1];
-  }
-  c->text[0][i + 1] = '\0';
+  char *prompt_line = &(c->text[0][0]);
+
+  int cursorByteOffset = CodepointGetByteOffset(prompt_line,  c->cursor.index);
+
+  char *deletion_point = prompt_line + cursorByteOffset;
+  int rest_size = strlen(deletion_point) + 1;
+
+  int utfsize = 0;
+  GetCodepointPrevious(deletion_point, &utfsize);
+
+  memmove(deletion_point - utfsize, deletion_point, rest_size);
+
+  c->cursor.index -= (c->cursor.index > 0 ? 1 : 0);
 }
 
-static inline void rqshell_put_char(struct console *c, char cha) {
-  char *prompt_line = *(c->text + 0);
-  char ch = prompt_line[c->cursor.index];
-  for (int i = c->cursor.index + 1; ch != '\0' && i < LINE_SIZE; ++i) {
-    char tmp = prompt_line[i];
-    prompt_line[i] = ch;
-    ch = tmp;
+static inline void rqshell_put_char(struct console *c, int cha) {
+  if (c->cursor.index >= LINE_SIZE) {
+    return;
   }
-  prompt_line[c->cursor.index] = cha;
-  g_console.cursor.index += 1;
+  char *prompt_line = &(c->text[0][0]);
+
+  int cursorByteOffset = CodepointGetByteOffset(prompt_line, c->cursor.index);
+
+  char *insertion_point = prompt_line + cursorByteOffset;
+  int rest_size = strlen(insertion_point) + 1;
+
+  int utfsize = 0;
+  const char *point = CodepointToUTF8(cha, &utfsize);
+
+  memmove(insertion_point + utfsize, insertion_point, rest_size);
+  memcpy(insertion_point, point, utfsize);
+
+  c->cursor.index += (c->cursor.index < LINE_SIZE ? 1 : 0);
 }
 
 static inline void rqshell_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
@@ -295,7 +328,6 @@ static inline void rqshell_handle_backspace() {
   if (IsKeyPressed(KEY_BACKSPACE)) {
     g_console.backspace.down = true;
     rqshell_del_char(&g_console);
-    g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
   }
 
   if (IsKeyReleased(KEY_BACKSPACE)) {
@@ -314,7 +346,6 @@ static inline void rqshell_handle_backspace() {
 
       g_console.backspace.timer = 0.f;
       g_console.backspace.timeout = BACKSPACE_DELETE;
-      g_console.cursor.index -= (g_console.cursor.index > 0 ? 1 : 0);
     } else if (prompt_len == 0) {
       g_console.backspace.down = false;
     }
@@ -417,11 +448,7 @@ void rqshell_update() {
 
   int c = GetCharPressed();
   if (c != 0) {
-    if (32 <= c && c < 126) { // ASCII printable support
-      rqshell_put_char(&g_console, c);
-    } else {
-      rqshell_put_char(&g_console, '?');
-    }
+    rqshell_put_char(&g_console, c);
   }
 
   if (g_console.cursor.direction == CURSOR_NO_MOVE) {
@@ -452,7 +479,7 @@ void rqshell_render() {
 
   float prompt_height = (g_console.window.y + g_console.window.height) -
                         (g_console.font_size + 2.f);
-  DrawTextEx(g_console.font, g_console.show_buffer,
+  DrawTextEx(g_console.font, g_console.text[0],
              (Vector2){.x = 0, .y = prompt_height}, g_console.font_size, 1.2f,
              g_console.font_color);
 
