@@ -7,7 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static inline bool is_white_space(char c) { return (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f'); }
+static inline bool is_white_space(char c) {
+  return (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f');
+}
 
 extern void rqshell_command_clear(int len, char const *c);
 
@@ -60,6 +62,7 @@ struct console {
 
   struct {
     int index;
+    int byteoffset;
     enum Cursor_Movement {
       CURSOR_NO_MOVE = 0,
       CURSOR_LEFT_MOVE,
@@ -74,7 +77,35 @@ struct console {
   char show_buffer[LINE_SIZE];
 } g_console;
 
+static inline void rqshell_move_left(int byte_size) {
+  if (g_console.cursor.byteoffset <= 0) {
+    return;
+  }
+  char *prompt_line = &(g_console.text[0][0]);
 
+  if (byte_size == 0) {
+    GetCodepointPrevious(prompt_line + g_console.cursor.byteoffset, &byte_size);
+  }
+
+  g_console.cursor.byteoffset -= byte_size;
+  g_console.cursor.index--;
+}
+
+static inline void rqshell_move_right(int byte_size) {
+  if (g_console.cursor.byteoffset >= LINE_SIZE) {
+    return;
+  }
+  char *prompt_line = &(g_console.text[0][0]);
+
+  if (byte_size == 0) {
+    GetCodepointNext(prompt_line + g_console.cursor.byteoffset, &byte_size);
+  }
+
+  g_console.cursor.byteoffset += byte_size;
+  g_console.cursor.index++;
+}
+
+/*
 // get byte offset into text counting "nCodepoints"-number of codepoints
 static inline int CodepointGetByteOffset(const char *text, int nCodepoints) {
   int byteOffset = 0;
@@ -82,14 +113,16 @@ static inline int CodepointGetByteOffset(const char *text, int nCodepoints) {
     return -1;
   }
 
-  for (int codepointCount = 0; byteOffset < LINE_SIZE && codepointCount < nCodepoints; codepointCount++)
-  {
+  for (int codepointCount = 0;
+       byteOffset < LINE_SIZE && codepointCount < nCodepoints;
+       codepointCount++) {
     int codepointSize = 0;
     GetCodepointNext(text + byteOffset, &codepointSize);
     byteOffset += codepointSize;
   }
   return byteOffset;
 }
+*/
 
 static inline void rqshell_del_char(struct console *c) {
   if (c->cursor.index <= 0) {
@@ -97,9 +130,7 @@ static inline void rqshell_del_char(struct console *c) {
   }
   char *prompt_line = &(c->text[0][0]);
 
-  int cursorByteOffset = CodepointGetByteOffset(prompt_line,  c->cursor.index);
-
-  char *deletion_point = prompt_line + cursorByteOffset;
+  char *deletion_point = prompt_line + g_console.cursor.byteoffset;
   int rest_size = strlen(deletion_point) + 1;
 
   int utfsize = 0;
@@ -107,7 +138,7 @@ static inline void rqshell_del_char(struct console *c) {
 
   memmove(deletion_point - utfsize, deletion_point, rest_size);
 
-  c->cursor.index -= (c->cursor.index > 0 ? 1 : 0);
+  rqshell_move_left(utfsize);
 }
 
 static inline void rqshell_put_char(struct console *c, int cha) {
@@ -116,9 +147,7 @@ static inline void rqshell_put_char(struct console *c, int cha) {
   }
   char *prompt_line = &(c->text[0][0]);
 
-  int cursorByteOffset = CodepointGetByteOffset(prompt_line, c->cursor.index);
-
-  char *insertion_point = prompt_line + cursorByteOffset;
+  char *insertion_point = prompt_line + g_console.cursor.byteoffset;
   int rest_size = strlen(insertion_point) + 1;
 
   int utfsize = 0;
@@ -127,7 +156,7 @@ static inline void rqshell_put_char(struct console *c, int cha) {
   memmove(insertion_point + utfsize, insertion_point, rest_size);
   memcpy(insertion_point, point, utfsize);
 
-  c->cursor.index += (c->cursor.index < LINE_SIZE ? 1 : 0);
+  rqshell_move_right(utfsize);
 }
 
 static inline void rqshell_shift_up(char bufs[N_LINES][LINE_SIZE], int nbufs) {
@@ -177,6 +206,7 @@ void rqshell_init() {
   g_console.cursor.blink_timer = 0.f;
   g_console.cursor.move_timer = 0.f;
   g_console.cursor.direction = 0;
+  g_console.cursor.byteoffset = 0;
 
   g_console.view_port = (Camera2D){
       .offset = (Vector2){.x = 0, .y = 0},
@@ -274,8 +304,7 @@ void rqshell_scan() {
 
     if (strcmp(g_console.decisions.prefix_buffer, key) == 0) {
       int start_of_args = prefix_end;
-      for (; start_of_args < len &&
-             is_white_space(prompt_line[start_of_args]);
+      for (; start_of_args < len && is_white_space(prompt_line[start_of_args]);
            start_of_args++)
         ;
 
@@ -359,13 +388,14 @@ static inline void rqshell_handle_cursor_move() {
   if (IsKeyPressed(KEY_LEFT)) {
     g_console.cursor.move_timer = 0.f;
     g_console.cursor.direction = CURSOR_LEFT_MOVE;
-    g_console.cursor.index -= (g_console.cursor.index > 0) ? 1 : 0;
     g_console.cursor.timeout = CURSOR_MOVE_FIRST;
+    rqshell_move_left(0);
+
   } else if (IsKeyPressed(KEY_RIGHT)) {
     g_console.cursor.move_timer = 0.f;
     g_console.cursor.direction = CURSOR_RIGHT_MOVE;
-    g_console.cursor.index += (g_console.cursor.index < prompt_len) ? 1 : 0;
     g_console.cursor.timeout = CURSOR_MOVE_FIRST;
+    rqshell_move_right(0);
   }
 
   if (IsKeyReleased(KEY_LEFT) || IsKeyReleased(KEY_RIGHT)) {
@@ -377,7 +407,7 @@ static inline void rqshell_handle_cursor_move() {
   case CURSOR_LEFT_MOVE:
     g_console.cursor.move_timer += GetFrameTime();
     if (g_console.cursor.move_timer > g_console.cursor.timeout) {
-      g_console.cursor.index -= (g_console.cursor.index > 0) ? 1 : 0;
+      rqshell_move_left(0);
       g_console.cursor.move_timer = 0.f;
       g_console.cursor.timeout = CURSOR_MOVE;
     }
@@ -385,7 +415,7 @@ static inline void rqshell_handle_cursor_move() {
   case CURSOR_RIGHT_MOVE:
     g_console.cursor.move_timer += GetFrameTime();
     if (g_console.cursor.move_timer > g_console.cursor.timeout) {
-      g_console.cursor.index += (g_console.cursor.index < prompt_len) ? 1 : 0;
+      rqshell_move_right(0);
       g_console.cursor.move_timer = 0.f;
       g_console.cursor.timeout = CURSOR_MOVE;
     }
