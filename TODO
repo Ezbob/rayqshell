@@ -8,6 +8,8 @@
 [x] "cd" implementation
 [x] finish "ls" implementation
 
+[x] UTF-8 encoded input
+
 # copy pasta support
 [ ] ctrl+v paste option
 [ ] ctrl+c copy option
