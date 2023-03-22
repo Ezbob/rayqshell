@@ -92,7 +92,7 @@ static inline void rqshell_move_left(int byte_size) {
 }
 
 static inline void rqshell_move_right(int byte_size) {
-  if (g_console.cursor.byteoffset >= LINE_SIZE) {
+  if (g_console.cursor.byteoffset >= strlen(g_console.text[0])) {
     return;
   }
   char *prompt_line = &(g_console.text[0][0]);
@@ -492,7 +492,19 @@ void rqshell_update() {
   memcpy(g_console.show_buffer, g_console.text[0], LINE_SIZE);
 
   if (g_console.cursor.on || g_console.cursor.direction != CURSOR_NO_MOVE) {
-    g_console.show_buffer[g_console.cursor.index] = '_';
+    int utf8_size = 0;
+    GetCodepointNext(g_console.show_buffer + g_console.cursor.byteoffset,
+                     &utf8_size);
+
+    if (utf8_size > 1) {
+      memmove(
+          g_console.show_buffer + g_console.cursor.byteoffset + (utf8_size - 1),
+          g_console.show_buffer + g_console.cursor.byteoffset + utf8_size,
+          strlen(g_console.show_buffer + g_console.cursor.byteoffset + utf8_size) +
+              1);
+    }
+
+    g_console.show_buffer[g_console.cursor.byteoffset] = '_';
   }
 
   g_console.view_port.offset.y =
@@ -509,7 +521,7 @@ void rqshell_render() {
 
   float prompt_height = (g_console.window.y + g_console.window.height) -
                         (g_console.font_size + 2.f);
-  DrawTextEx(g_console.font, g_console.text[0],
+  DrawTextEx(g_console.font, g_console.show_buffer,
              (Vector2){.x = 0, .y = prompt_height}, g_console.font_size, 1.2f,
              g_console.font_color);
 
