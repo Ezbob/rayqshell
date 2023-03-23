@@ -11,7 +11,7 @@
 [x] UTF-8 encoded input
 
 # copy pasta support
-[ ] ctrl+v paste option
+[x] ctrl+v paste option
 [ ] ctrl+c copy option
 [ ] text marking (probably holding shift)
   [ ] mouse marking box support
