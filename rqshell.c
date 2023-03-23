@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vcruntime_string.h>
 
 static inline bool is_white_space(char c) {
   return (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f');
@@ -61,7 +62,6 @@ struct console {
   } opening_animation;
 
   struct {
-    int index;
     int byteoffset;
     enum Cursor_Movement {
       CURSOR_NO_MOVE = 0,
@@ -88,7 +88,6 @@ static inline void rqshell_move_left(int byte_size) {
   }
 
   g_console.cursor.byteoffset -= byte_size;
-  g_console.cursor.index--;
 }
 
 static inline void rqshell_move_right(int byte_size) {
@@ -102,30 +101,10 @@ static inline void rqshell_move_right(int byte_size) {
   }
 
   g_console.cursor.byteoffset += byte_size;
-  g_console.cursor.index++;
 }
-
-/*
-// get byte offset into text counting "nCodepoints"-number of codepoints
-static inline int CodepointGetByteOffset(const char *text, int nCodepoints) {
-  int byteOffset = 0;
-  if (nCodepoints * 4 >= LINE_SIZE) {
-    return -1;
-  }
-
-  for (int codepointCount = 0;
-       byteOffset < LINE_SIZE && codepointCount < nCodepoints;
-       codepointCount++) {
-    int codepointSize = 0;
-    GetCodepointNext(text + byteOffset, &codepointSize);
-    byteOffset += codepointSize;
-  }
-  return byteOffset;
-}
-*/
 
 static inline void rqshell_del_char(struct console *c) {
-  if (c->cursor.index <= 0) {
+  if (g_console.cursor.byteoffset <= 0) {
     return;
   }
   char *prompt_line = &(c->text[0][0]);
@@ -142,7 +121,7 @@ static inline void rqshell_del_char(struct console *c) {
 }
 
 static inline void rqshell_put_char(struct console *c, int cha) {
-  if (c->cursor.index >= LINE_SIZE) {
+  if (g_console.cursor.byteoffset >= LINE_SIZE) {
     return;
   }
   char *prompt_line = &(c->text[0][0]);
@@ -201,7 +180,6 @@ void rqshell_init() {
   g_console.opening_animation.percent = 0.f;
   g_console.opening_animation.state = CONSOLE_CLOSED;
 
-  g_console.cursor.index = 0;
   g_console.cursor.on = true;
   g_console.cursor.blink_timer = 0.f;
   g_console.cursor.move_timer = 0.f;
@@ -440,7 +418,7 @@ static inline void rqshell_handle_enter() {
     rqshell_scan();
     memset(g_console.text[0], '\0', LINE_SIZE);
 
-    g_console.history.index = g_console.cursor.index = 0;
+    g_console.history.index = g_console.cursor.byteoffset = 0;
   }
 }
 
@@ -451,13 +429,43 @@ static inline void rqshell_handle_history() {
                                   : g_console.history.used;
     memcpy(g_console.text[0], g_console.history.buffer[g_console.history.index],
            sizeof(g_console.text[0]));
-    g_console.cursor.index = (int)strlen(g_console.text[0]);
+    g_console.cursor.byteoffset = (int)strlen(g_console.text[0]);
   } else if (IsKeyPressed(KEY_DOWN)) {
     g_console.history.index =
         g_console.history.index > 0 ? g_console.history.index - 1 : 0;
     memcpy(g_console.text[0], g_console.history.buffer[g_console.history.index],
            sizeof(g_console.text[0]));
-    g_console.cursor.index = (int)strlen(g_console.text[0]);
+    g_console.cursor.byteoffset = (int)strlen(g_console.text[0]);
+  }
+}
+
+static inline void rqshell_handle_cursor() {
+
+  if (g_console.cursor.direction == CURSOR_NO_MOVE) {
+    g_console.cursor.blink_timer += GetFrameTime();
+    if (g_console.cursor.blink_timer >= 0.5f) {
+      g_console.cursor.on = !g_console.cursor.on;
+      g_console.cursor.blink_timer = 0.f;
+    }
+  }
+
+  memcpy(g_console.show_buffer, g_console.text[0], LINE_SIZE);
+
+  if (g_console.cursor.on || g_console.cursor.direction != CURSOR_NO_MOVE) {
+    int utf8_size = 0;
+    GetCodepointNext(g_console.show_buffer + g_console.cursor.byteoffset,
+                     &utf8_size);
+
+    if (utf8_size > 1) {
+      memmove(g_console.show_buffer + g_console.cursor.byteoffset +
+                  (utf8_size - 1),
+              g_console.show_buffer + g_console.cursor.byteoffset + utf8_size,
+              strlen(g_console.show_buffer + g_console.cursor.byteoffset +
+                     utf8_size) +
+                  1);
+    }
+
+    g_console.show_buffer[g_console.cursor.byteoffset] = '_';
   }
 }
 
@@ -476,36 +484,21 @@ void rqshell_update() {
 
   rqshell_handle_backspace();
 
+  if ((IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V))) {
+    const char *clip = GetClipboardText();
+    size_t clip_len = strlen(clip);
+    memcpy(g_console.text[0] + g_console.cursor.byteoffset, clip,
+           min((LINE_SIZE - g_console.cursor.byteoffset), clip_len));
+    g_console.cursor.byteoffset += clip_len;
+    g_console.text[0][g_console.cursor.byteoffset] = '\0';
+  }
+
   int c = GetCharPressed();
   if (c != 0) {
     rqshell_put_char(&g_console, c);
   }
 
-  if (g_console.cursor.direction == CURSOR_NO_MOVE) {
-    g_console.cursor.blink_timer += GetFrameTime();
-    if (g_console.cursor.blink_timer >= 0.5f) {
-      g_console.cursor.on = !g_console.cursor.on;
-      g_console.cursor.blink_timer = 0.f;
-    }
-  }
-
-  memcpy(g_console.show_buffer, g_console.text[0], LINE_SIZE);
-
-  if (g_console.cursor.on || g_console.cursor.direction != CURSOR_NO_MOVE) {
-    int utf8_size = 0;
-    GetCodepointNext(g_console.show_buffer + g_console.cursor.byteoffset,
-                     &utf8_size);
-
-    if (utf8_size > 1) {
-      memmove(
-          g_console.show_buffer + g_console.cursor.byteoffset + (utf8_size - 1),
-          g_console.show_buffer + g_console.cursor.byteoffset + utf8_size,
-          strlen(g_console.show_buffer + g_console.cursor.byteoffset + utf8_size) +
-              1);
-    }
-
-    g_console.show_buffer[g_console.cursor.byteoffset] = '_';
-  }
+  rqshell_handle_cursor();
 
   g_console.view_port.offset.y =
       Clamp((g_console.view_port.offset.y +
@@ -561,6 +554,6 @@ void rqshell_clear() {
   for (int i = 0; i < N_LINES; ++i) {
     g_console.text[i][0] = '\0';
   }
-  g_console.cursor.index = 0;
+  g_console.cursor.byteoffset = 0;
   g_console.cursor.direction = CURSOR_NO_MOVE;
 }
