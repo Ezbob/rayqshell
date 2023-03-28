@@ -3,6 +3,7 @@
 #include <raylib.h>
 #include <raymath.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -469,6 +470,46 @@ static inline void rqshell_handle_cursor() {
   }
 }
 
+static inline void rqshell_handle_paste() {
+  if (!IsKeyDown(KEY_LEFT_CONTROL) || !IsKeyPressed(KEY_V)) {
+    return;
+  }
+
+  const char *clip = GetClipboardText();
+
+  if (!clip) {
+    return;
+  }
+
+  const char *next_line = strpbrk(clip, "\n");
+  const char *line_start = clip;
+
+  while (next_line && line_start) {
+    int line_size =
+        (next_line - line_start) -
+        ((next_line - clip) >= 2 && next_line[-1] == '\r' ? 1 : 0);
+
+    size_t max_length =
+        min((LINE_SIZE - g_console.cursor.byteoffset), line_size);
+
+    memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start, max_length);
+    g_console.text[0][max_length] = '\0';
+    rqshell_shift_up(g_console.text, N_LINES);
+    g_console.cursor.byteoffset = 0;
+
+    line_start = next_line + 1;
+    next_line = strpbrk(line_start, "\n");
+  }
+
+  if (!next_line && line_start) {
+    size_t max_length = min((LINE_SIZE - g_console.cursor.byteoffset), strlen(line_start));
+    memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start, max_length);
+
+    g_console.text[0][max_length] = '\0';
+    g_console.cursor.byteoffset += max_length;
+  }
+}
+
 void rqshell_update() {
   rqshell_update_animation();
 
@@ -484,14 +525,7 @@ void rqshell_update() {
 
   rqshell_handle_backspace();
 
-  if ((IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V))) {
-    const char *clip = GetClipboardText();
-    size_t clip_len = strlen(clip);
-    memcpy(g_console.text[0] + g_console.cursor.byteoffset, clip,
-           min((LINE_SIZE - g_console.cursor.byteoffset), clip_len));
-    g_console.cursor.byteoffset += clip_len;
-    g_console.text[0][g_console.cursor.byteoffset] = '\0';
-  }
+  rqshell_handle_paste();
 
   int c = GetCharPressed();
   if (c != 0) {
