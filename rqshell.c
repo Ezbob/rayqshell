@@ -492,7 +492,8 @@ static inline void rqshell_handle_paste() {
     size_t max_length =
         min((LINE_SIZE - g_console.cursor.byteoffset), line_size);
 
-    memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start, max_length);
+    memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start,
+           max_length);
     g_console.text[0][max_length] = '\0';
     rqshell_shift_up(g_console.text, N_LINES);
     g_console.cursor.byteoffset = 0;
@@ -505,8 +506,7 @@ static inline void rqshell_handle_paste() {
     size_t max_length =
         min((LINE_SIZE - g_console.cursor.byteoffset), strlen(line_start));
     memset(g_console.text[0], '\0', LINE_SIZE);
-    memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start,
-           max_length);
+    memcpy(g_console.text[0], line_start, max_length);
 
     g_console.text[0][max_length] = '\0';
     g_console.cursor.byteoffset += max_length;
