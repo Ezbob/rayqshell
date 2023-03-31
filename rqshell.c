@@ -481,13 +481,13 @@ static inline void rqshell_handle_paste() {
     return;
   }
 
-  const char *next_line = strpbrk(clip, "\n");
+  const char *line_end = strpbrk(clip, "\n");
   const char *line_start = clip;
+  int line_size = 0;
 
-  while (next_line && line_start) {
-    int line_size =
-        (next_line - line_start) -
-        ((next_line - clip) >= 2 && next_line[-1] == '\r' ? 1 : 0);
+  while (line_end && line_start) {
+    line_size = (line_end - line_start) -
+                ((line_end - clip) >= 2 && line_end[-1] == '\r' ? 1 : 0);
 
     size_t max_length =
         min((LINE_SIZE - g_console.cursor.byteoffset), line_size);
@@ -497,13 +497,16 @@ static inline void rqshell_handle_paste() {
     rqshell_shift_up(g_console.text, N_LINES);
     g_console.cursor.byteoffset = 0;
 
-    line_start = next_line + 1;
-    next_line = strpbrk(line_start, "\n");
+    line_start = line_end + 1;
+    line_end = strpbrk(line_start, "\n");
   }
 
-  if (!next_line && line_start) {
-    size_t max_length = min((LINE_SIZE - g_console.cursor.byteoffset), strlen(line_start));
-    memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start, max_length);
+  if (!line_end && line_start) {
+    size_t max_length =
+        min((LINE_SIZE - g_console.cursor.byteoffset), strlen(line_start));
+    memset(g_console.text[0], '\0', LINE_SIZE);
+    memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start,
+           max_length);
 
     g_console.text[0][max_length] = '\0';
     g_console.cursor.byteoffset += max_length;
