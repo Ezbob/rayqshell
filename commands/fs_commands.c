@@ -59,7 +59,7 @@ void rqshell_command_ls(int cs, char const *cc) {
 void rqshell_command_cd(int cs, char const *cc) {
   static const char *home = NULL;
   if (!home) {
-    home = _strdup(GetWorkingDirectory());
+    home = strdup(GetWorkingDirectory());
   }
 
   struct rqshell_arg_iter iter = rqshell_arg_iter_init(cc, cs);
