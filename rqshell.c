@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vcruntime_string.h>
 
 static inline bool is_white_space(char c) {
   return (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f');
