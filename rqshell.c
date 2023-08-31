@@ -503,7 +503,7 @@ static inline void rqshell_handle_paste() {
 
   if (!line_end && line_start) {
     size_t max_length =
-        min((LINE_SIZE - g_console.cursor.byteoffset), strlen(line_start));
+        (size_t)fmin((float)(LINE_SIZE - g_console.cursor.byteoffset), (float)strlen(line_start));
     memset(g_console.text[0], '\0', LINE_SIZE);
     memcpy(g_console.text[0], line_start, max_length);
 
