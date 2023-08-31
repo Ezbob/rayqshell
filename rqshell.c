@@ -489,7 +489,7 @@ static inline void rqshell_handle_paste() {
                 ((line_end - clip) >= 2 && line_end[-1] == '\r' ? 1 : 0);
 
     size_t max_length =
-        min((LINE_SIZE - g_console.cursor.byteoffset), line_size);
+        (size_t)fmin((float)(LINE_SIZE - g_console.cursor.byteoffset), (float)line_size);
 
     memcpy(g_console.text[0] + g_console.cursor.byteoffset, line_start,
            max_length);
